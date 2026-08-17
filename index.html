@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#18312B">
+  <title>포켓 사파리 — 보호구역 조사일지</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#reserve-board">보호구역 지도로 건너뛰기</a>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">PS</span>
+      <div><p class="kicker">FIELD NOTE № 025</p><h1>포켓 사파리</h1></div>
+    </div>
+    <div class="progress" aria-live="polite">
+      <span id="phase-label">서식지 조사</span>
+      <strong id="round-label">1 / 12</strong>
+      <div class="progress-track"><i id="progress-bar"></i></div>
+    </div>
+    <div class="header-actions">
+      <button id="score-button" class="text-button" type="button">점수 상세</button>
+      <button id="help-button" class="text-button" type="button" aria-expanded="false">조사 안내</button>
+      <button id="restart-button" class="stamp-button" type="button">새 조사</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <nav id="flow-steps" class="flow-steps" aria-label="게임 진행 단계">
+      <span id="step-select" class="flow-step active"><b>1</b><em>도미노 선택</em></span>
+      <i aria-hidden="true">→</i>
+      <span id="step-place" class="flow-step"><b>2</b><em>배치</em></span>
+      <i aria-hidden="true">→</i>
+      <span id="step-score" class="flow-step"><b>3</b><em>종료 점수</em></span>
+    </nav>
+    <aside class="notebook panel" aria-labelledby="ranking-title">
+      <p class="kicker">EXPEDITION TEAM</p>
+      <h2 id="ranking-title">조사대 현황</h2>
+      <ol id="players" class="players"></ol>
+      <div class="order-box">
+        <p class="micro-label">현재 조사 순서</p>
+        <div id="turn-order" class="turn-order"></div>
+        <p class="order-note">낮은 카드 번호부터 다음 조사를 시작합니다.</p>
+      </div>
+      <div class="legend">
+        <p class="micro-label">지도 기호</p>
+        <div id="habitat-legend"></div>
+      </div>
+    </aside>
+
+    <section class="map-panel" aria-labelledby="map-title">
+      <div class="map-heading">
+        <div><p class="kicker">PRIVATE RESERVE · A-17</p><h2 id="map-title">나의 보호구역</h2></div>
+        <div class="map-score"><span>현재 관찰점수</span><strong id="live-score">0</strong></div>
+      </div>
+      <div class="map-wrap">
+        <span class="coordinate north">N</span><span class="coordinate west">W</span>
+        <div id="reserve-board" class="board" role="grid" aria-label="중앙 캠프가 있는 5 곱하기 5 보호구역 지도" tabindex="-1"></div>
+      </div>
+      <div class="map-caption">
+        <span id="status-text" role="status">공개 카드에서 서식지 도미노를 선택하세요.</span>
+        <span id="placement-count">0 / 24칸 조사</span>
+      </div>
+    </section>
+
+    <aside class="field-panel panel" aria-labelledby="field-title">
+      <p class="kicker">ACTIVE SPECIMEN</p>
+      <h2 id="field-title">현장 기록</h2>
+      <div id="selection-detail" class="selection-detail empty-state">카드를 고르면 이곳에 조사 정보가 표시됩니다.</div>
+      <div id="placement-controls" class="placement-controls" hidden>
+        <button id="rotate-button" class="primary-button" type="button">도미노 회전 <kbd>R</kbd></button>
+      </div>
+      <div class="log-wrap">
+        <p class="micro-label">현장 기록</p>
+        <ol id="game-log" class="game-log" aria-live="polite"></ol>
+      </div>
+    </aside>
+
+    <section class="draft-panel panel" aria-labelledby="draft-title">
+      <div class="draft-heading">
+        <div><p class="kicker" id="draft-kicker">HABITAT SURVEY</p><h2 id="draft-title">공개 서식지 카드</h2></div>
+        <p id="turn-prompt">당신의 선택을 기다리는 중입니다.</p>
+      </div>
+      <div id="draft-cards" class="draft-cards" role="group" aria-label="공개 후보 카드"></div>
+    </section>
+  </main>
+
+  <section id="tutorial" class="overlay" hidden>
+    <div class="modal field-guide" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+      <button class="close-button" data-close="tutorial" type="button" aria-label="조사 안내 닫기">×</button>
+      <p class="kicker">QUICK FIELD GUIDE</p>
+      <h2 id="tutorial-title">작은 지도에 살아 있는 생태계를 만드세요.</h2>
+      <div class="guide-grid">
+        <article><b>01 · 서식지 선택</b><p>현재 순서대로 네 명이 도미노를 하나씩 예약합니다. 공개 카드는 작은 번호부터 배열됩니다.</p></article>
+        <article><b>02 · 번호순 배치</b><p>모두 고른 뒤 낮은 번호부터 회전·배치합니다. 캠프 또는 같은 서식지와 맞닿아야 합니다.</p></article>
+        <article><b>03 · 동물</b><p>3·9라운드 뒤 1마리, 6·12라운드 뒤 연속 2마리를 선택·고정해 총 6마리를 기록합니다.</p></article>
+        <article><b>04 · 토착 동물과 점수</b><p>고번호 도미노 4장에는 토착 동물 +3이 있습니다. 그 칸을 먼저 점유하며, 드래프트 6마리가 모두 양수면 +5점입니다.</p></article>
+      </div>
+      <p class="key-note"><kbd>Tab</kbd> 이동 · <kbd>Enter</kbd>/<kbd>Space</kbd> 선택 · <kbd>R</kbd> 회전</p>
+      <button id="start-button" class="primary-button wide" type="button">조사 시작</button>
+    </div>
+  </section>
+
+  <section id="score-modal" class="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="score-title">
+      <button class="close-button" data-close="score-modal" type="button" aria-label="점수 상세 닫기">×</button>
+      <p class="kicker">SCORE LEDGER</p><h2 id="score-title">점수 상세</h2>
+      <div id="score-details" class="score-details"></div>
+    </div>
+  </section>
+
+  <section id="result" class="overlay" hidden>
+    <div class="modal result-card" role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <p class="kicker">SURVEY COMPLETE</p><h2 id="result-title">보호구역 조사 완료</h2>
+      <div id="result-ranking"></div>
+      <p id="result-comment" class="result-comment"></p>
+      <button class="text-button wide" data-close="result" type="button">지도와 점수 상세 보기</button>
+      <button id="play-again-button" class="primary-button wide" type="button">새 보호구역 조사</button>
+    </div>
+  </section>
+
+  <script src="game.js"></script>
+</body>
+</html>
