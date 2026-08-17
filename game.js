@@ -9,6 +9,8 @@ const HABITATS = {
   cave: { name: "동굴", symbol: "◆", color: "#817b73", rarity: 6, count: 8 }
 };
 
+const RARITY_LABELS = ["흔함", "자주 등장", "보통", "드묾", "희귀", "매우 희귀"];
+
 const ANIMAL_LIBRARY = [
   { name: "들토끼", emoji: "🐇", tier: "common", tierName: "일반", scores: { meadow: 4, forest: 3, water: 1, desert: 1, jungle: 1, cave: -2 } },
   { name: "꽃사슴", emoji: "🦌", tier: "common", tierName: "일반", scores: { meadow: 4, forest: 3, water: 1, desert: 0, jungle: 1, cave: -2 } },
@@ -47,16 +49,19 @@ const dom = {
   rotate: document.querySelector("#rotate-button"), log: document.querySelector("#game-log"),
   draftTitle: document.querySelector("#draft-title"), draftKicker: document.querySelector("#draft-kicker"),
   prompt: document.querySelector("#turn-prompt"), cards: document.querySelector("#draft-cards"),
-  tutorial: document.querySelector("#tutorial"), scoreModal: document.querySelector("#score-modal"),
+  tutorial: document.querySelector("#tutorial"), scoreModal: document.querySelector("#score-modal"), ecologyModal: document.querySelector("#ecology-modal"),
   scoreDetails: document.querySelector("#score-details"), result: document.querySelector("#result"),
   resultRanking: document.querySelector("#result-ranking"), resultComment: document.querySelector("#result-comment"),
   stepSelect: document.querySelector("#step-select"), stepPlace: document.querySelector("#step-place"),
-  stepScore: document.querySelector("#step-score")
+  stepScore: document.querySelector("#step-score"), habitatCatalog: document.querySelector("#habitat-catalog"),
+  animalMatrix: document.querySelector("#animal-matrix"), onboardingProgress: document.querySelector("#onboarding-progress"),
+  onboardingPrev: document.querySelector("#onboarding-prev"), onboardingNext: document.querySelector("#onboarding-next")
 };
 
 let game;
 let timers = new Set();
 let runId = 0;
+let onboardingStep = 0;
 
 function rngFactory(seed) {
   let value = seed >>> 0;
@@ -168,7 +173,7 @@ function advanceTurn() {
     if (cannotPlace) {
       if (game.phase === "habitat") {
         player.discards += 1;
-        game.log.unshift(`나: 카드 №${card.number}는 합법 위치가 없어 자동 폐기`);
+        game.log.unshift(`나: 카드 ${card.number}는 합법 위치가 없어 자동 폐기`);
       } else {
         game.log.unshift(`나: ${card.name}을 놓을 서식지가 없어 기록 제외`);
         recordUnplacedAnimal(player, card);
@@ -328,7 +333,7 @@ function renderDraft() {
   }
   const humanTurn = currentPlayerIndex() === 0 && game.stage === "select" && !game.finished;
   const animalSubdraftLabel = `${game.animalSubdraft}/${game.round % 6 === 0 ? 2 : 1}`;
-  dom.draftTitle.textContent = game.phase === "habitat" ? `공개 서식지 카드 · ${game.stage === "select" ? "선택" : "번호순 배치"}` : `공개 동물 카드 ${animalSubdraftLabel} · ${game.stage === "select" ? "선택" : "번호순 고정"}`;
+  dom.draftTitle.textContent = game.phase === "habitat" ? `공개 서식지 카드 · ${game.stage === "select" ? "선택" : "순서값순 배치"}` : `공개 동물 카드 ${animalSubdraftLabel} · ${game.stage === "select" ? "선택" : "순서값순 고정"}`;
   dom.draftKicker.textContent = game.phase === "habitat" ? "HABITAT SURVEY" : "WILDLIFE DRAFT";
   dom.prompt.textContent = humanTurn ? "당신의 선택입니다." : `${game.players[currentPlayerIndex()]?.name || "조사대"} ${game.stage === "select" ? "선택" : "배치"} 중…`;
   dom.cards.innerHTML = game.candidates.map((card, index) => {
@@ -338,11 +343,11 @@ function renderDraft() {
     if (game.phase === "animal") {
       const guide = animalInsight(card);
       return `<button class="draft-card animal-card${classes}" data-card="${index}" type="button" ${unavailable ? "disabled" : ""}>
-        <span class="card-number">№ ${card.number}</span><span class="animal-face" aria-hidden="true">${card.emoji}</span><strong>${card.name}</strong><small>선호 ${guide.preferred} · 기피 ${guide.avoided}</small><span class="tier ${card.tier}">${card.tierName}</span>${owner}
+        <span class="card-number">${card.number}</span><span class="animal-face" aria-hidden="true">${card.emoji}</span><strong>${card.name}</strong><small>선호 ${guide.preferred} · 기피 ${guide.avoided}</small><span class="tier ${card.tier}">${card.tierName}</span>${owner}
       </button>`;
     }
     return `<button class="draft-card${classes}" data-card="${index}" type="button" ${unavailable ? "disabled" : ""}>
-      <span class="card-number">№ ${card.number}</span><span class="card-domino" aria-hidden="true"><i class="card-half ${habitatClass(card.a)}">${HABITATS[card.a].symbol}<small>${"●".repeat(card.iconsA)}</small></i><i class="card-half ${habitatClass(card.b)}">${HABITATS[card.b].symbol}<small>${"●".repeat(card.iconsB)}</small></i></span>
+      <span class="card-number">${card.number}</span><span class="card-domino" aria-hidden="true"><i class="card-half ${habitatClass(card.a)}">${HABITATS[card.a].symbol}<small>${"●".repeat(card.iconsA)}</small></i><i class="card-half ${habitatClass(card.b)}">${HABITATS[card.b].symbol}<small>${"●".repeat(card.iconsB)}</small></i></span>
       <strong>${HABITATS[card.a].name} · ${HABITATS[card.b].name}</strong><small>생태 아이콘 ${card.iconsA + card.iconsB}개</small>${card.native ? `<span class="native-card-badge">${card.native.emoji} 토착 동물 +3</span>` : ""}${owner}
     </button>`;
   }).join("");
@@ -378,7 +383,7 @@ function renderDetail() {
     const guide = animalInsight(card);
     dom.detail.innerHTML = `<div class="animal-face" aria-hidden="true">${card.emoji}</div><h3>${card.name} · ${card.tierName}</h3><div class="animal-score-guide"><span><b>선호</b> ${guide.preferred}</span><span><b>기피</b> ${guide.avoided}</span><span><b>중립</b> ${guide.neutral}</span><span><b>일반</b> ${guide.general || "없음"}</span></div><p class="detail-copy">놓은 칸의 서식지 점수 하나만 사용합니다. 영역 크기와 아이콘은 동물 점수에 영향이 없고, 등급은 성향 표시이므로 실제 점수표를 확인하세요. 드래프트 동물 6마리가 각각 1점 이상이면 +5점입니다.</p>`;
   } else {
-    dom.detail.innerHTML = `<div class="domino-preview" style="transform:rotate(${game.rotation * 90}deg)"><i class="preview-half ${habitatClass(card.a)}">${HABITATS[card.a].symbol}${card.nativeHalf === "a" ? ` ${card.native.emoji}` : ""}</i><i class="preview-half ${habitatClass(card.b)}">${HABITATS[card.b].symbol}${card.nativeHalf === "b" ? ` ${card.native.emoji}` : ""}</i></div><p class="detail-copy">카드 №${card.number} · 아이콘 ${card.iconsA + card.iconsB}개${card.native ? `<br>${card.native.emoji} 토착 동물: 해당 칸 점유 · 고정 +3점` : ""}<br>현재 방향 ${game.rotation * 90}°</p>`;
+    dom.detail.innerHTML = `<div class="domino-preview" style="transform:rotate(${game.rotation * 90}deg)"><i class="preview-half ${habitatClass(card.a)}">${HABITATS[card.a].symbol}${card.nativeHalf === "a" ? ` ${card.native.emoji}` : ""}</i><i class="preview-half ${habitatClass(card.b)}">${HABITATS[card.b].symbol}${card.nativeHalf === "b" ? ` ${card.native.emoji}` : ""}</i></div><p class="detail-copy">카드 ${card.number} · 아이콘 ${card.iconsA + card.iconsB}개${card.native ? `<br>${card.native.emoji} 토착 동물: 해당 칸 점유 · 고정 +3점` : ""}<br>현재 방향 ${game.rotation * 90}°</p>`;
   }
 }
 
@@ -404,7 +409,7 @@ function placeHuman(index) {
     if (!isLegalPlacement(player, placement)) return;
     applyHabitat(player, placement);
     player.dominoes += 1;
-    game.log.unshift(`나: 카드 №${card.number} 배치 · ${HABITATS[card.a].name}/${HABITATS[card.b].name}`);
+    game.log.unshift(`나: 카드 ${card.number} 배치 · ${HABITATS[card.a].name}/${HABITATS[card.b].name}`);
   } else {
     if (!player.board[index] || player.board[index].animal) return;
     applyAnimal(player, card, index);
@@ -462,7 +467,7 @@ function botTurn() {
     if (bestPlacement) {
       applyHabitat(player, bestPlacement.placement);
       player.dominoes += 1;
-      game.log.unshift(`${player.name}: 카드 №${choice.card.number} 배치`);
+      game.log.unshift(`${player.name}: 카드 ${choice.card.number} 배치`);
     } else {
       player.discards += 1;
       game.log.unshift(`${player.name}: 합법 위치 없음 · 자동 폐기`);
@@ -495,7 +500,7 @@ function recordSelection(candidateIndex) {
   const card = game.candidates[candidateIndex];
   card.takenBy = playerIndex;
   game.selections.push({ playerIndex, number: card.number, candidateIndex, card });
-  game.log.unshift(`${game.players[playerIndex].name}: ${game.phase === "habitat" ? `카드 №${card.number}` : `${card.name} №${card.number}`} 예약`);
+  game.log.unshift(`${game.players[playerIndex].name}: ${game.phase === "habitat" ? `카드 ${card.number}` : `${card.name} 순서값 ${card.number}`} 예약`);
   game.cursor += 1;
   game.selectedIndex = null;
   if (game.cursor < 4) {
@@ -506,7 +511,7 @@ function recordSelection(candidateIndex) {
   game.turnOrder = game.selections.map((entry) => entry.playerIndex);
   game.stage = "place";
   game.cursor = 0;
-  game.log.unshift("선택 완료: 낮은 카드 번호부터 배치를 시작합니다.");
+  game.log.unshift("선택 완료: 낮은 순서값부터 배치를 시작합니다.");
   advanceTurn();
 }
 
@@ -599,11 +604,45 @@ function renderScoreDetails() {
     }).join("");
     const draftCount = player.animals.filter((animal) => animal.source === "draft").length;
     const nativeCount = player.animals.filter((animal) => animal.source === "native").length;
-    return `<details class="score-player"${player.human ? " open" : ""}><summary>${player.avatar} ${player.name} — ${score.total}점</summary><div class="score-grid">${habitatRows}<span>드래프트 동물 ${draftCount}/6</span><strong>${score.draftAnimalScore}</strong><span>토착 동물 ${nativeCount}</span><strong>${score.nativeAnimalScore}</strong><span>12도미노 완전배치</span><strong>${score.completeBonus}</strong><span>드래프트 동물 6마리 모두 양수</span><strong>${score.positiveBonus}</strong></div></details>`;
+    return `<details class="score-player"${player.human ? " open" : ""}><summary>${player.avatar} ${player.name} — ${score.total}점</summary><div class="score-grid">${habitatRows}<span>드래프트 동물 ${draftCount}/6</span><strong>${score.draftAnimalScore}</strong><span>토착 동물 ${nativeCount}</span><strong>${score.nativeAnimalScore}</strong><span>폐기 없이 12도미노 배치</span><strong>${score.completeBonus}</strong><span>드래프트 6마리가 각각 1점 이상</span><strong>${score.positiveBonus}</strong></div></details>`;
   }).join("");
 }
 
+function renderEcologyGuide() {
+  const habitats = Object.entries(HABITATS).sort(([, a], [, b]) => a.rarity - b.rarity);
+  dom.habitatCatalog.innerHTML = habitats.map(([, habitat]) => `
+    <article class="habitat-card">
+      <div class="habitat-card-head"><span class="habitat-card-symbol" style="--habitat-color:${habitat.color}" aria-hidden="true">${habitat.symbol}</span><strong>${habitat.name}</strong></div>
+      <small>출현 ${habitat.count} / 96칸</small><small class="rarity-label">${RARITY_LABELS[habitat.rarity - 1]}</small>
+    </article>`).join("");
+  dom.animalMatrix.innerHTML = `
+    <caption>고유 동물 12종의 서식지별 고정 점수</caption>
+    <thead><tr><th scope="col">동물 · 등급</th>${habitats.map(([, habitat]) => `<th scope="col"><span aria-hidden="true">${habitat.symbol}</span> ${habitat.name}</th>`).join("")}</tr></thead>
+    <tbody>${ANIMAL_LIBRARY.map((animal) => `<tr><th scope="row">${animal.emoji} ${animal.name}<small>${animal.tierName}</small></th>${habitats.map(([id]) => {
+      const score = animal.scores[id];
+      const scoreClass = score > 0 ? "score-positive" : score < 0 ? "score-negative" : "score-neutral";
+      return `<td class="${scoreClass}">${score > 0 ? "+" : ""}${score}</td>`;
+    }).join("")}</tr>`).join("")}</tbody>`;
+}
+
+function renderOnboarding(step) {
+  onboardingStep = Math.max(0, Math.min(2, step));
+  const labels = ["도미노 선택", "회전과 배치", "동물과 점수"];
+  document.querySelectorAll("[data-onboarding-step]").forEach((panel) => { panel.hidden = Number(panel.dataset.onboardingStep) !== onboardingStep; });
+  dom.onboardingProgress.textContent = `${onboardingStep + 1} / 3 · ${labels[onboardingStep]}`;
+  dom.onboardingPrev.hidden = onboardingStep === 0;
+  dom.onboardingNext.hidden = onboardingStep === 2;
+  document.querySelector("#start-button").textContent = onboardingStep === 2 ? "조사 시작" : "건너뛰고 조사 시작";
+}
+
+function openEcologyGuide(returnTarget) {
+  renderEcologyGuide();
+  openModal(dom.ecologyModal, "#close-ecology");
+  dom.ecologyModal._returnFocus = returnTarget;
+}
+
 function openModal(element, focusSelector) {
+  element._returnFocus = document.activeElement;
   element.hidden = false;
   document.querySelector(".topbar").inert = true;
   document.querySelector(".app-shell").inert = true;
@@ -611,19 +650,27 @@ function openModal(element, focusSelector) {
 }
 
 function closeModal(element) {
+  const wasOpen = !element.hidden;
   element.hidden = true;
   document.querySelector(".topbar").inert = false;
   document.querySelector(".app-shell").inert = false;
+  const returnTarget = element._returnFocus;
+  element._returnFocus = null;
+  if (wasOpen && returnTarget?.isConnected && !returnTarget.closest("[hidden]")) returnTarget.focus();
 }
 
 function restart(showTutorial = false) {
   clearTimers();
   closeModal(dom.result);
   closeModal(dom.scoreModal);
+  closeModal(dom.ecologyModal);
   closeModal(dom.tutorial);
   game = freshGame();
   startPhase("habitat");
-  if (showTutorial) openModal(dom.tutorial, "#start-button");
+  if (showTutorial) {
+    renderOnboarding(0);
+    openModal(dom.tutorial, "#onboarding-next");
+  }
 }
 
 dom.legend.innerHTML = Object.entries(HABITATS).map(([id, habitat]) => `<div class="legend-row"><i class="legend-swatch" style="--habitat:${habitat.color}"></i><span>${habitat.name}</span><em>${habitat.count}/96</em></div>`).join("");
@@ -636,7 +683,15 @@ dom.board.addEventListener("focusout", (event) => { const cell = event.target.cl
 dom.rotate.addEventListener("click", rotateDomino);
 document.querySelector("#restart-button").addEventListener("click", () => restart(false));
 document.querySelector("#play-again-button").addEventListener("click", () => restart(false));
-document.querySelector("#help-button").addEventListener("click", () => openModal(dom.tutorial, "#start-button"));
+document.querySelector("#help-button").addEventListener("click", () => { renderOnboarding(0); openModal(dom.tutorial, "#onboarding-next"); });
+document.querySelector("#ecology-button").addEventListener("click", (event) => openEcologyGuide(event.currentTarget));
+document.querySelector("#tutorial-ecology-button").addEventListener("click", () => {
+  closeModal(dom.tutorial);
+  openEcologyGuide(document.querySelector("#help-button"));
+});
+document.querySelector("#close-ecology").addEventListener("click", () => closeModal(dom.ecologyModal));
+dom.onboardingPrev.addEventListener("click", () => renderOnboarding(onboardingStep - 1));
+dom.onboardingNext.addEventListener("click", () => { renderOnboarding(onboardingStep + 1); (onboardingStep === 2 ? document.querySelector("#start-button") : dom.onboardingNext).focus(); });
 document.querySelector("#start-button").addEventListener("click", () => { closeModal(dom.tutorial); dom.cards.querySelector("button:not(:disabled)")?.focus(); });
 document.querySelector("#score-button").addEventListener("click", () => { renderScoreDetails(); openModal(dom.scoreModal, ".close-button"); });
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => closeModal(document.querySelector(`#${button.dataset.close}`))));
@@ -644,7 +699,8 @@ document.addEventListener("keydown", (event) => {
   if ((event.key === "r" || event.key === "R") && !dom.tutorial.hidden) return;
   if ((event.key === "r" || event.key === "R") && game.phase === "habitat") { event.preventDefault(); rotateDomino(); }
   if (event.key === "Escape") {
-    if (!dom.tutorial.hidden) closeModal(dom.tutorial);
+    if (!dom.ecologyModal.hidden) closeModal(dom.ecologyModal);
+    else if (!dom.tutorial.hidden) closeModal(dom.tutorial);
     else if (!dom.scoreModal.hidden) closeModal(dom.scoreModal);
     else if (!dom.result.hidden) closeModal(dom.result);
   }

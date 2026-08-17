@@ -12,7 +12,7 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">PS</span>
-      <div><p class="kicker">FIELD NOTE № 025</p><h1>포켓 사파리</h1></div>
+      <div><p class="kicker">FIELD NOTE 025</p><h1>포켓 사파리</h1></div>
     </div>
     <div class="progress" aria-live="polite">
       <span id="phase-label">서식지 조사</span>
@@ -20,6 +20,7 @@
       <div class="progress-track"><i id="progress-bar"></i></div>
     </div>
     <div class="header-actions">
+      <button id="ecology-button" class="text-button" type="button">생태 도감</button>
       <button id="score-button" class="text-button" type="button">점수 상세</button>
       <button id="help-button" class="text-button" type="button" aria-expanded="false">조사 안내</button>
       <button id="restart-button" class="stamp-button" type="button">새 조사</button>
@@ -41,7 +42,7 @@
       <div class="order-box">
         <p class="micro-label">현재 조사 순서</p>
         <div id="turn-order" class="turn-order"></div>
-        <p class="order-note">낮은 카드 번호부터 다음 조사를 시작합니다.</p>
+        <p class="order-note">낮은 순서값부터 다음 조사를 시작합니다.</p>
       </div>
       <div class="legend">
         <p class="micro-label">지도 기호</p>
@@ -90,15 +91,41 @@
     <div class="modal field-guide" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
       <button class="close-button" data-close="tutorial" type="button" aria-label="조사 안내 닫기">×</button>
       <p class="kicker">QUICK FIELD GUIDE</p>
-      <h2 id="tutorial-title">작은 지도에 살아 있는 생태계를 만드세요.</h2>
-      <div class="guide-grid">
-        <article><b>01 · 서식지 선택</b><p>현재 순서대로 네 명이 도미노를 하나씩 예약합니다. 공개 카드는 작은 번호부터 배열됩니다.</p></article>
-        <article><b>02 · 번호순 배치</b><p>모두 고른 뒤 낮은 번호부터 회전·배치합니다. 캠프 또는 같은 서식지와 맞닿아야 합니다.</p></article>
-        <article><b>03 · 동물</b><p>3·9라운드 뒤 1마리, 6·12라운드 뒤 연속 2마리를 선택·고정해 총 6마리를 기록합니다.</p></article>
-        <article><b>04 · 토착 동물과 점수</b><p>고번호 도미노 4장에는 토착 동물 +3이 있습니다. 그 칸을 먼저 점유하며, 드래프트 6마리가 모두 양수면 +5점입니다.</p></article>
+      <h2 id="tutorial-title">세 단계로 보호구역을 완성하세요.</h2>
+      <p id="onboarding-progress" class="onboarding-progress" aria-live="polite">1 / 3 · 도미노 선택</p>
+      <div class="guide-grid onboarding-grid">
+        <article data-onboarding-step="0"><span class="guide-number">1</span><b>낮은 순서값 선택</b><p>네 명이 낮은 순서값부터 정렬된 도미노를 하나씩 예약합니다. 선택한 순서값이 배치와 다음 차례를 정합니다.</p></article>
+        <article data-onboarding-step="1" hidden><span class="guide-number">2</span><b>회전하고 두 칸 배치</b><p><kbd>R</kbd> 또는 버튼으로 회전한 뒤, 두 칸 미리보기를 확인하고 캠프나 같은 서식지에 붙입니다.</p></article>
+        <article data-onboarding-step="2" hidden><span class="guide-number">3</span><b>동물과 점수</b><p>동물은 1·2·1·2회 드래프트합니다. 토착은 +3, 양수 동물 6마리는 +5입니다. 예: 숲 4칸·아이콘 2개 = 8점.</p></article>
       </div>
       <p class="key-note"><kbd>Tab</kbd> 이동 · <kbd>Enter</kbd>/<kbd>Space</kbd> 선택 · <kbd>R</kbd> 회전</p>
-      <button id="start-button" class="primary-button wide" type="button">조사 시작</button>
+      <div class="modal-actions"><button id="tutorial-ecology-button" class="text-button" type="button">생태 도감 열기</button><button id="onboarding-prev" class="text-button" type="button" hidden>이전</button><button id="onboarding-next" class="text-button" type="button">다음</button><button id="start-button" class="primary-button" type="button">건너뛰고 조사 시작</button></div>
+    </div>
+  </section>
+
+  <section id="ecology-modal" class="overlay" hidden>
+    <div class="modal ecology-modal" role="dialog" aria-modal="true" aria-labelledby="ecology-title">
+      <button id="close-ecology" class="close-button" type="button" aria-label="생태 도감 닫기">×</button>
+      <p class="kicker">ECOLOGY FIELD INDEX</p>
+      <h2 id="ecology-title">생태 도감</h2>
+      <p class="modal-intro">서식지 희귀도와 동물별 적합도를 한눈에 비교하세요. 출현칸 수는 전체 96개 도미노 반쪽 기준이며, 희귀도는 점수 배율이 아니라 적게 등장한다는 뜻입니다.</p>
+      <section aria-labelledby="habitat-catalog-title">
+        <h3 id="habitat-catalog-title">서식지 6종</h3>
+        <div id="habitat-catalog" class="habitat-catalog"></div>
+      </section>
+      <section class="formula-note" aria-labelledby="formula-title">
+        <h3 id="formula-title">점수와 아이콘</h3>
+        <div class="formula-grid">
+          <p><b>영역 점수</b><span>연결 영역 칸 수 × 그 영역 아이콘 수 · 예: 숲 4칸 × 아이콘 2개 = 8점</span></p>
+          <p><b>카드 아이콘</b><span>1–28번 0개(28장) · 29–44번 1개(16장) · 45–48번 2개(4장)</span></p>
+          <p><b>보너스</b><span>폐기 없이 12도미노 배치 +5 · 드래프트 6마리가 각각 1점 이상이면 +5</span></p>
+          <p><b>토착 동물</b><span>해당 칸을 점유하고 고정 +3</span></p>
+        </div>
+      </section>
+      <section aria-labelledby="animal-matrix-title">
+        <div class="matrix-heading"><h3 id="animal-matrix-title">동물 × 서식지 점수표</h3><p><span class="matrix-key positive">양수</span><span class="matrix-key neutral">중립 0</span><span class="matrix-key negative">기피 음수</span></p></div>
+        <div class="table-scroll" tabindex="0" aria-label="동물 서식지 점수표, 가로로 스크롤 가능"><table id="animal-matrix" class="animal-matrix"></table></div>
+      </section>
     </div>
   </section>
 
