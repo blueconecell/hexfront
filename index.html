@@ -3,147 +3,165 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#18312B">
-  <title>포켓 사파리 — 보호구역 조사일지</title>
+  <meta name="theme-color" content="#071019">
+  <meta name="description" content="육각 영토를 점령하며 싸우는 실시간 슈팅 로그라이트 프로토타입">
+  <title>HEXFRONT — 실시간 육각 전선</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <a class="skip-link" href="#reserve-board">보호구역 지도로 건너뛰기</a>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">PS</span>
-      <div><p class="kicker">FIELD NOTE 025</p><h1>포켓 사파리</h1></div>
-    </div>
-    <div class="progress" aria-live="polite">
-      <span id="phase-label">서식지 조사</span>
-      <strong id="round-label">1 / 12</strong>
-      <div class="progress-track"><i id="progress-bar"></i></div>
-    </div>
-    <div class="header-actions">
-      <button id="ecology-button" class="text-button" type="button">생태 도감</button>
-      <button id="score-button" class="text-button" type="button">점수 상세</button>
-      <button id="help-button" class="text-button" type="button" aria-expanded="false">조사 안내</button>
-      <button id="restart-button" class="stamp-button" type="button">새 조사</button>
-    </div>
-  </header>
+  <a class="skip-link" href="#game-canvas">전장으로 건너뛰기</a>
 
-  <main class="app-shell">
-    <nav id="flow-steps" class="flow-steps" aria-label="게임 진행 단계">
-      <span id="step-select" class="flow-step active"><b>1</b><em>도미노 선택</em></span>
-      <i aria-hidden="true">→</i>
-      <span id="step-place" class="flow-step"><b>2</b><em>배치</em></span>
-      <i aria-hidden="true">→</i>
-      <span id="step-score" class="flow-step"><b>3</b><em>종료 점수</em></span>
-    </nav>
-    <aside class="notebook panel" aria-labelledby="ranking-title">
-      <p class="kicker">EXPEDITION TEAM</p>
-      <h2 id="ranking-title">조사대 현황</h2>
-      <ol id="players" class="players"></ol>
-      <div class="order-box">
-        <p class="micro-label">현재 조사 순서</p>
-        <div id="turn-order" class="turn-order"></div>
-        <p class="order-note">낮은 순서값부터 다음 조사를 시작합니다.</p>
-      </div>
-      <div class="legend">
-        <p class="micro-label">지도 기호</p>
-        <div id="habitat-legend"></div>
-      </div>
-    </aside>
+  <main class="game-shell">
+    <canvas id="game-canvas" tabindex="0" aria-label="HEXFRONT 실시간 전장"></canvas>
 
-    <section class="map-panel" aria-labelledby="map-title">
-      <div class="map-heading">
-        <div><p class="kicker">PRIVATE RESERVE · A-17</p><h2 id="map-title">나의 보호구역</h2></div>
-        <div class="map-score"><span>현재 관찰점수</span><strong id="live-score">0</strong></div>
+    <section class="touch-controls" aria-label="모바일 전투 조작">
+      <div id="touch-stick" class="touch-stick" aria-hidden="true">
+        <i id="touch-stick-knob"></i>
+        <span>MOVE</span>
       </div>
-      <div class="map-wrap">
-        <span class="coordinate north">N</span><span class="coordinate west">W</span>
-        <div id="reserve-board" class="board" role="grid" aria-label="중앙 캠프가 있는 5 곱하기 5 보호구역 지도" tabindex="-1"></div>
-      </div>
-      <div class="map-caption">
-        <span id="status-text" role="status">공개 카드에서 서식지 도미노를 선택하세요.</span>
-        <span id="placement-count">0 / 24칸 조사</span>
-      </div>
+      <button id="touch-fire-zone" class="touch-fire-zone" type="button" aria-label="터치하여 조준하고 연속 사격">
+        <span>FIRE</span>
+      </button>
     </section>
 
-    <aside class="field-panel panel" aria-labelledby="field-title">
-      <p class="kicker">ACTIVE SPECIMEN</p>
-      <h2 id="field-title">현장 기록</h2>
-      <div id="selection-detail" class="selection-detail empty-state">카드를 고르면 이곳에 조사 정보가 표시됩니다.</div>
-      <div id="placement-controls" class="placement-controls" hidden>
-        <button id="rotate-button" class="primary-button" type="button">도미노 회전 <kbd>R</kbd></button>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-glyph" aria-hidden="true">⬡</span>
+        <div>
+          <p class="eyebrow">TACTICAL BUILD 0.3 / RIVAL FRONT</p>
+          <h1>HEXFRONT</h1>
+        </div>
       </div>
-      <div class="log-wrap">
-        <p class="micro-label">현장 기록</p>
-        <ol id="game-log" class="game-log" aria-live="polite"></ol>
+      <div class="mission">
+        <span id="objective-text">외곽 타일을 점령해 전선을 확장하십시오.</span>
+        <strong id="timer-value">08:00</strong>
       </div>
+      <div class="top-actions">
+        <button id="build-button" class="quiet-button build-trigger" type="button">건설</button>
+        <button id="pause-button" class="quiet-button" type="button">일시정지</button>
+        <button id="restart-button" class="quiet-button" type="button">전선 재시작</button>
+      </div>
+    </header>
+
+    <aside class="hud hud-left" aria-label="기체 상태">
+      <p class="panel-label">PILOT STATUS</p>
+      <section class="meter-block">
+        <div class="meter-heading"><span>기체 내구도</span><strong id="health-text">100 / 100</strong></div>
+        <div class="meter health"><i id="health-fill"></i></div>
+      </section>
+      <section class="meter-block">
+        <div class="meter-heading"><span>증강 동기화</span><strong>LV <b id="level-value">1</b></strong></div>
+        <div class="meter xp"><i id="xp-fill"></i></div>
+      </section>
+      <dl class="telemetry">
+        <div><dt>직접 사격</dt><dd id="weapon-value">표준 펄스</dd></div>
+        <div><dt>주변 공격</dt><dd id="auto-value">궤도 블레이드 × 1</dd></div>
+        <div><dt>무기 체계</dt><dd id="arsenal-value">펄스</dd></div>
+      </dl>
     </aside>
 
-    <section class="draft-panel panel" aria-labelledby="draft-title">
-      <div class="draft-heading">
-        <div><p class="kicker" id="draft-kicker">HABITAT SURVEY</p><h2 id="draft-title">공개 서식지 카드</h2></div>
-        <p id="turn-prompt">당신의 선택을 기다리는 중입니다.</p>
+    <aside class="hud hud-right" aria-label="영토 현황">
+      <p class="panel-label">FRONTIER GRID</p>
+      <div class="big-stat"><strong id="territory-value">1</strong><span>점령 타일</span></div>
+      <div class="economy-grid" aria-label="영토 경제">
+        <div><span>산업력</span><strong id="production-value">25</strong></div>
+        <div><span>생산</span><strong id="production-rate">+0.0/s</strong></div>
       </div>
-      <div id="draft-cards" class="draft-cards" role="group" aria-label="공개 후보 카드"></div>
+      <p class="enemy-label">HOSTILE CIVILIZATIONS</p>
+      <div class="enemy-grid" aria-label="적 문명 현황">
+        <div><strong id="enemy-capitals-value">3 / 3</strong><span>남은 수도</span></div>
+        <div><strong id="enemy-territory-value">0</strong><span>적 영토</span></div>
+        <div><strong id="enemy-pressure-value">0</strong><span>침공군</span></div>
+      </div>
+      <dl class="telemetry compact">
+        <div><dt>섬멸</dt><dd id="kills-value">0</dd></div>
+        <div><dt>현재 지형</dt><dd id="terrain-value">지휘 기지</dd></div>
+        <div><dt>국경 확장</dt><dd id="expansion-value">전초기지 필요</dd></div>
+      </dl>
+    </aside>
+
+    <section class="capture-panel" aria-live="polite">
+      <div class="capture-copy"><span id="capture-label">미점령 타일에 진입하십시오</span><span class="capture-mode">AUTO</span></div>
+      <div class="meter capture"><i id="capture-fill"></i></div>
     </section>
+
+    <footer class="controls" aria-label="조작법">
+      <span><kbd>WASD</kbd> 이동</span>
+      <span><kbd>마우스</kbd> 조준</span>
+      <span><kbd>클릭</kbd> 사격</span>
+      <span><kbd>B</kbd> 건설</span>
+      <span><kbd>P</kbd> 일시정지</span>
+    </footer>
   </main>
 
-  <section id="tutorial" class="overlay" hidden>
-    <div class="modal field-guide" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
-      <button class="close-button" data-close="tutorial" type="button" aria-label="조사 안내 닫기">×</button>
-      <p class="kicker">QUICK FIELD GUIDE</p>
-      <h2 id="tutorial-title">세 단계로 보호구역을 완성하세요.</h2>
-      <p id="onboarding-progress" class="onboarding-progress" aria-live="polite">1 / 3 · 도미노 선택</p>
-      <div class="guide-grid onboarding-grid">
-        <article data-onboarding-step="0"><span class="guide-number">1</span><b>낮은 순서값 선택</b><p>네 명이 낮은 순서값부터 정렬된 도미노를 하나씩 예약합니다. 선택한 순서값이 배치와 다음 차례를 정합니다.</p></article>
-        <article data-onboarding-step="1" hidden><span class="guide-number">2</span><b>회전하고 두 칸 배치</b><p><kbd>R</kbd> 또는 버튼으로 회전한 뒤, 두 칸 미리보기를 확인하고 캠프나 같은 서식지에 붙입니다.</p></article>
-        <article data-onboarding-step="2" hidden><span class="guide-number">3</span><b>동물과 점수</b><p>동물은 1·2·1·2회 드래프트합니다. 토착은 +3, 양수 동물 6마리는 +5입니다. 예: 숲 4칸·아이콘 2개 = 8점.</p></article>
+  <section id="start-overlay" class="overlay" aria-labelledby="start-title">
+    <div class="modal briefing">
+      <p class="eyebrow">FRONTIER COMMAND / THREE RIVAL SIGNALS</p>
+      <h2 id="start-title">영토가 곧 무기다.</h2>
+      <p class="lead">전장을 개척하고 산업망을 건설하십시오. 지도 외곽의 세 적 문명은 수도와 생산기지에서 병력을 만들어 국경을 넓힙니다. 보급선을 끊고 모든 수도를 파괴하십시오.</p>
+      <div class="briefing-grid">
+        <article><span>01</span><strong>발견한다</strong><p>안개 속 적 영토의 붉은 보급선과 병력 출생 신호를 추적합니다.</p></article>
+        <article><span>02</span><strong>문명화한다</strong><p>영토를 생산망으로 바꾸고 전초기지와 전문 무기를 가동합니다.</p></article>
+        <article><span>03</span><strong>공성한다</strong><p>생산기지를 파괴해 국경을 중립화하고 세 적 수도를 무너뜨립니다.</p></article>
       </div>
-      <p class="key-note"><kbd>Tab</kbd> 이동 · <kbd>Enter</kbd>/<kbd>Space</kbd> 선택 · <kbd>R</kbd> 회전</p>
-      <div class="modal-actions"><button id="tutorial-ecology-button" class="text-button" type="button">생태 도감 열기</button><button id="onboarding-prev" class="text-button" type="button" hidden>이전</button><button id="onboarding-next" class="text-button" type="button">다음</button><button id="start-button" class="primary-button" type="button">건너뛰고 조사 시작</button></div>
+      <button id="start-button" class="primary-button" type="button">전선 투입</button>
     </div>
   </section>
 
-  <section id="ecology-modal" class="overlay" hidden>
-    <div class="modal ecology-modal" role="dialog" aria-modal="true" aria-labelledby="ecology-title">
-      <button id="close-ecology" class="close-button" type="button" aria-label="생태 도감 닫기">×</button>
-      <p class="kicker">ECOLOGY FIELD INDEX</p>
-      <h2 id="ecology-title">생태 도감</h2>
-      <p class="modal-intro">서식지 희귀도와 동물별 적합도를 한눈에 비교하세요. 출현칸 수는 전체 96개 도미노 반쪽 기준이며, 희귀도는 점수 배율이 아니라 적게 등장한다는 뜻입니다.</p>
-      <section aria-labelledby="habitat-catalog-title">
-        <h3 id="habitat-catalog-title">서식지 6종</h3>
-        <div id="habitat-catalog" class="habitat-catalog"></div>
-      </section>
-      <section class="formula-note" aria-labelledby="formula-title">
-        <h3 id="formula-title">점수와 아이콘</h3>
-        <div class="formula-grid">
-          <p><b>영역 점수</b><span>연결 영역 칸 수 × 그 영역 아이콘 수 · 예: 숲 4칸 × 아이콘 2개 = 8점</span></p>
-          <p><b>카드 아이콘</b><span>1–28번 0개(28장) · 29–44번 1개(16장) · 45–48번 2개(4장)</span></p>
-          <p><b>보너스</b><span>폐기 없이 12도미노 배치 +5 · 드래프트 6마리가 각각 1점 이상이면 +5</span></p>
-          <p><b>토착 동물</b><span>해당 칸을 점유하고 고정 +3</span></p>
-        </div>
-      </section>
-      <section aria-labelledby="animal-matrix-title">
-        <div class="matrix-heading"><h3 id="animal-matrix-title">동물 × 서식지 점수표</h3><p><span class="matrix-key positive">양수</span><span class="matrix-key neutral">중립 0</span><span class="matrix-key negative">기피 음수</span></p></div>
-        <div class="table-scroll" tabindex="0" aria-label="동물 서식지 점수표, 가로로 스크롤 가능"><table id="animal-matrix" class="animal-matrix"></table></div>
-      </section>
+  <section id="augment-overlay" class="overlay" hidden aria-labelledby="augment-title">
+    <div class="modal augment-modal">
+      <p class="eyebrow">AUGMENT SIGNAL ACQUIRED</p>
+      <h2 id="augment-title">전투 규칙을 선택하십시오.</h2>
+      <div id="augment-options" class="augment-options"></div>
     </div>
   </section>
 
-  <section id="score-modal" class="overlay" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="score-title">
-      <button class="close-button" data-close="score-modal" type="button" aria-label="점수 상세 닫기">×</button>
-      <p class="kicker">SCORE LEDGER</p><h2 id="score-title">점수 상세</h2>
-      <div id="score-details" class="score-details"></div>
+  <section id="build-overlay" class="overlay" hidden aria-labelledby="build-title">
+    <div class="modal build-modal">
+      <p class="eyebrow">TERRITORY DEVELOPMENT</p>
+      <h2 id="build-title">점령지를 전문화하십시오.</h2>
+      <p id="build-tile-info" class="build-tile-info">점령한 빈 타일 위에서 건설할 수 있습니다.</p>
+      <div class="build-options">
+        <button id="build-outpost" class="build-card outpost" type="button">
+          <span>30 산업력</span><strong>전초기지</strong><small>인접 국경을 주기적으로 자동 점령합니다.</small>
+        </button>
+        <button id="build-factory" class="build-card factory" type="button">
+          <span>40 산업력</span><strong>군수공장</strong><small>생산량을 늘리고 산탄 보조포를 장착합니다.</small>
+        </button>
+        <button id="build-lab" class="build-card lab" type="button">
+          <span>45 산업력</span><strong>연구소</strong><small>관통력이 높은 자동 레일 포격을 가동합니다.</small>
+        </button>
+        <button id="build-silo" class="build-card silo" type="button">
+          <span>55 산업력</span><strong>미사일 사일로</strong><small>적을 추적해 폭발하는 유도탄을 발사합니다.</small>
+        </button>
+      </div>
+      <button id="build-cancel" class="quiet-button build-cancel" type="button">건설 취소</button>
     </div>
   </section>
 
-  <section id="result" class="overlay" hidden>
-    <div class="modal result-card" role="dialog" aria-modal="true" aria-labelledby="result-title">
-      <p class="kicker">SURVEY COMPLETE</p><h2 id="result-title">보호구역 조사 완료</h2>
-      <div id="result-ranking"></div>
-      <p id="result-comment" class="result-comment"></p>
-      <button class="text-button wide" data-close="result" type="button">지도와 점수 상세 보기</button>
-      <button id="play-again-button" class="primary-button wide" type="button">새 보호구역 조사</button>
+  <section id="pause-overlay" class="overlay" hidden aria-labelledby="pause-title">
+    <div class="modal compact-modal">
+      <p class="eyebrow">TACTICAL HOLD</p>
+      <h2 id="pause-title">전선 일시정지</h2>
+      <button id="resume-button" class="primary-button" type="button">전투 복귀</button>
+    </div>
+  </section>
+
+  <section id="game-over-overlay" class="overlay" hidden aria-labelledby="game-over-title">
+    <div class="modal compact-modal danger-modal">
+      <p class="eyebrow">SIGNAL LOST</p>
+      <h2 id="game-over-title">전선이 붕괴했습니다.</h2>
+      <p>배치를 바꾸고 다시 진입하십시오.</p>
+      <button id="play-again-button" class="primary-button" type="button">다시 투입</button>
+    </div>
+  </section>
+
+  <section id="victory-overlay" class="overlay" hidden aria-labelledby="victory-title">
+    <div class="modal compact-modal victory-modal">
+      <p class="eyebrow">FRONTIER SECURED</p>
+      <h2 id="victory-title">육각 전선 확보.</h2>
+      <p>세 적 문명의 수도가 침묵하고 전장의 생산망을 확보했습니다.</p>
+      <button id="victory-restart-button" class="primary-button" type="button">새 전선 개척</button>
     </div>
   </section>
 
