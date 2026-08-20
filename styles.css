@@ -148,6 +148,13 @@ h2 { margin-bottom: .75rem; font: 900 clamp(2rem, 6vw, 4.6rem)/.9 var(--display)
 .economy-grid div { padding: .58rem .5rem; background: rgba(7, 16, 25, .72); }
 .economy-grid span { display: block; margin-bottom: .18rem; color: var(--muted); font-size: .55rem; }
 .economy-grid strong { display: block; color: var(--yellow); font: 800 .72rem var(--utility); }
+.capital-cycle-status { padding: .38rem .5rem; border: 1px solid rgba(244, 201, 93, .15); border-top: 0; color: #e8cf83; background: rgba(244, 201, 93, .045); font: 700 .52rem var(--utility); text-align: center; letter-spacing: .025em; }
+.territory-legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: .35rem; background: rgba(216, 245, 240, .1); }
+.territory-legend span { padding: .34rem .2rem; background: rgba(7, 16, 25, .8); font: 750 .5rem var(--utility); text-align: center; }
+.territory-legend span::before { content: ""; display: inline-block; width: .46rem; height: .46rem; margin-right: .3rem; border: 2px solid currentColor; vertical-align: -.08rem; transform: rotate(30deg); }
+.territory-legend .own { color: #63e6ff; }
+.territory-legend .neutral { color: #7d929d; }
+.territory-legend .hostile { color: #ff6b8a; }
 .doctrine-label { margin: .75rem 0 .3rem; color: var(--violet); font: 700 .55rem var(--utility); letter-spacing: .12em; }
 .doctrine-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(185, 156, 255, .15); }
 .doctrine-grid.two { grid-template-columns: repeat(2, 1fr); }
@@ -262,10 +269,7 @@ kbd { padding: .15rem .32rem; border: 1px solid rgba(216, 245, 240, .34); color:
 .augment-card:hover, .augment-card:focus-visible { border-color: var(--yellow); transform: translateY(-4px); }
 .augment-card > span { display: block; margin-bottom: 2.4rem; color: var(--yellow); font: 700 .6rem var(--utility); letter-spacing: .12em; }
 .augment-card[data-category="combat"] > span { color: var(--red); }
-.augment-card[data-category="industry"] > span { color: var(--yellow); }
-.augment-card[data-category="science"] > span { color: var(--violet); }
 .augment-card[data-category="combat"]:hover, .augment-card[data-category="combat"]:focus-visible { border-color: var(--red); }
-.augment-card[data-category="science"]:hover, .augment-card[data-category="science"]:focus-visible { border-color: var(--violet); }
 .augment-card strong { display: block; margin-bottom: .5rem; font: 850 1.25rem var(--display); }
 .augment-card small { display: block; color: var(--muted); font-size: .72rem; line-height: 1.55; }
 .build-modal { width: min(68rem, 100%); }

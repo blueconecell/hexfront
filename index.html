@@ -68,6 +68,10 @@
         <div><span>과학</span><strong id="science-value">0</strong></div>
         <div><span>연구</span><strong id="science-rate">+0.0/s</strong></div>
       </div>
+      <div class="capital-cycle-status" id="capital-cycle-status">수도 생산 주기 준비 중</div>
+      <div class="territory-legend" aria-label="영토 색상 범례">
+        <span class="own">아군</span><span class="neutral">중립</span><span class="hostile">적군</span>
+      </div>
       <p class="doctrine-label">VICTORY DOCTRINES</p>
       <div class="doctrine-grid two" aria-label="승리 조건 진행도">
         <div class="military"><span>군사</span><strong id="military-progress">0 / 3</strong></div>
@@ -111,7 +115,7 @@
     <div class="modal briefing">
       <p class="eyebrow">FRONTIER COMMAND / TWO ENDINGS</p>
       <h2 id="start-title">명령하고, 성장하고, 떠나라.</h2>
-      <p class="lead">공격은 자동입니다. 거점 영향권의 타일을 클릭해 개척하고, 적의 대공세로부터 도시를 지켜 성장시키십시오. 적 수도를 점령하거나 우주선을 완성해 행성을 탈출할 수 있습니다.</p>
+      <p class="lead">공격은 자동입니다. 지형과 자원을 비교해 거점 가까운 영토를 개척하고, 적의 대공세로부터 도시를 지켜 성장시키십시오. 적 수도를 점령하거나 우주선을 완성해 행성을 탈출할 수 있습니다.</p>
       <div class="briefing-grid two">
         <article class="military"><span>MILITARY</span><strong>정복 승리</strong><p>생산기지를 끊고 세 적 문명의 수도를 공성 점령합니다.</p></article>
         <article class="science"><span>EXODUS</span><strong>과학 승리</strong><p>우주항법을 연구하고 레벨 3 거점에서 우주선을 건조해 탈출합니다.</p></article>
@@ -122,8 +126,8 @@
 
   <section id="augment-overlay" class="overlay" hidden aria-labelledby="augment-title">
     <div class="modal augment-modal">
-      <p class="eyebrow">DOCTRINE AUGMENT ACQUIRED</p>
-      <h2 id="augment-title">이번 성장을 선택하십시오.</h2>
+      <p class="eyebrow">COMBAT AUGMENT ACQUIRED</p>
+      <h2 id="augment-title">전투 증강을 선택하십시오.</h2>
       <div id="augment-options" class="augment-options"></div>
     </div>
   </section>
