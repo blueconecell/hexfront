@@ -14,29 +14,28 @@
   <main class="game-shell">
     <canvas id="game-canvas" tabindex="0" aria-label="HEXFRONT 실시간 전장"></canvas>
 
-    <section class="touch-controls" aria-label="모바일 전투 조작">
+    <section class="touch-controls" aria-label="모바일 이동 조작">
       <div id="touch-stick" class="touch-stick" aria-hidden="true">
         <i id="touch-stick-knob"></i>
         <span>MOVE</span>
       </div>
-      <button id="touch-fire-zone" class="touch-fire-zone" type="button" aria-label="터치하여 조준하고 연속 사격">
-        <span>FIRE</span>
-      </button>
+      <p class="touch-command-hint">지도 탭 · 명령</p>
     </section>
 
     <header class="topbar">
       <div class="brand">
         <span class="brand-glyph" aria-hidden="true">⬡</span>
         <div>
-          <p class="eyebrow">TACTICAL BUILD 0.3 / RIVAL FRONT</p>
+          <p class="eyebrow">TACTICAL BUILD 0.5 / AUTO COMMAND</p>
           <h1>HEXFRONT</h1>
         </div>
       </div>
       <div class="mission">
-        <span id="objective-text">외곽 타일을 점령해 전선을 확장하십시오.</span>
-        <strong id="timer-value">08:00</strong>
+        <span id="objective-text">적 수도를 점령하거나 우주선을 발사하십시오.</span>
+        <strong id="timer-value">00:00</strong>
       </div>
       <div class="top-actions">
+        <button id="tech-button" class="quiet-button research-trigger" type="button">연구</button>
         <button id="build-button" class="quiet-button build-trigger" type="button">건설</button>
         <button id="pause-button" class="quiet-button" type="button">일시정지</button>
         <button id="restart-button" class="quiet-button" type="button">전선 재시작</button>
@@ -54,7 +53,7 @@
         <div class="meter xp"><i id="xp-fill"></i></div>
       </section>
       <dl class="telemetry">
-        <div><dt>직접 사격</dt><dd id="weapon-value">표준 펄스</dd></div>
+        <div><dt>자동 주무기</dt><dd id="weapon-value">표준 펄스</dd></div>
         <div><dt>주변 공격</dt><dd id="auto-value">궤도 블레이드 × 1</dd></div>
         <div><dt>무기 체계</dt><dd id="arsenal-value">펄스</dd></div>
       </dl>
@@ -66,7 +65,16 @@
       <div class="economy-grid" aria-label="영토 경제">
         <div><span>산업력</span><strong id="production-value">25</strong></div>
         <div><span>생산</span><strong id="production-rate">+0.0/s</strong></div>
+        <div><span>과학</span><strong id="science-value">0</strong></div>
+        <div><span>연구</span><strong id="science-rate">+0.0/s</strong></div>
       </div>
+      <p class="doctrine-label">VICTORY DOCTRINES</p>
+      <div class="doctrine-grid two" aria-label="승리 조건 진행도">
+        <div class="military"><span>군사</span><strong id="military-progress">0 / 3</strong></div>
+        <div class="science"><span>탈출 계획</span><strong id="science-progress">연구 필요</strong></div>
+      </div>
+      <div class="ship-status" id="ship-status">우주항법 연구 필요</div>
+      <div class="defense-status" id="defense-status">다음 적 공세 탐지 중</div>
       <p class="enemy-label">HOSTILE CIVILIZATIONS</p>
       <div class="enemy-grid" aria-label="적 문명 현황">
         <div><strong id="enemy-capitals-value">3 / 3</strong><span>남은 수도</span></div>
@@ -80,15 +88,20 @@
       </dl>
     </aside>
 
-    <section class="capture-panel" aria-live="polite">
-      <div class="capture-copy"><span id="capture-label">미점령 타일에 진입하십시오</span><span class="capture-mode">AUTO</span></div>
+    <section class="capture-panel command-panel" aria-live="polite">
+      <div class="capture-copy"><span id="capture-label">거점 영향권의 타일을 클릭하십시오</span><span class="capture-mode">COMMAND</span></div>
       <div class="meter capture"><i id="capture-fill"></i></div>
+      <div class="selection-line"><span id="selected-tile-value">선택 없음</span><strong id="selected-action-value">명령 대기</strong></div>
+      <div class="selection-actions">
+        <button id="found-base-button" type="button" disabled>거점 설립 · 50</button>
+        <button id="ship-button" type="button" disabled>우주선 건조 · 90</button>
+      </div>
     </section>
 
     <footer class="controls" aria-label="조작법">
       <span><kbd>WASD</kbd> 이동</span>
-      <span><kbd>마우스</kbd> 조준</span>
-      <span><kbd>클릭</kbd> 사격</span>
+      <span><kbd>클릭/탭</kbd> 영토 명령</span>
+      <span><kbd>공격</kbd> 자동</span>
       <span><kbd>B</kbd> 건설</span>
       <span><kbd>P</kbd> 일시정지</span>
     </footer>
@@ -96,13 +109,12 @@
 
   <section id="start-overlay" class="overlay" aria-labelledby="start-title">
     <div class="modal briefing">
-      <p class="eyebrow">FRONTIER COMMAND / THREE RIVAL SIGNALS</p>
-      <h2 id="start-title">영토가 곧 무기다.</h2>
-      <p class="lead">전장을 개척하고 산업망을 건설하십시오. 지도 외곽의 세 적 문명은 수도와 생산기지에서 병력을 만들어 국경을 넓힙니다. 보급선을 끊고 모든 수도를 파괴하십시오.</p>
-      <div class="briefing-grid">
-        <article><span>01</span><strong>발견한다</strong><p>안개 속 적 영토의 붉은 보급선과 병력 출생 신호를 추적합니다.</p></article>
-        <article><span>02</span><strong>문명화한다</strong><p>영토를 생산망으로 바꾸고 전초기지와 전문 무기를 가동합니다.</p></article>
-        <article><span>03</span><strong>공성한다</strong><p>생산기지를 파괴해 국경을 중립화하고 세 적 수도를 무너뜨립니다.</p></article>
+      <p class="eyebrow">FRONTIER COMMAND / TWO ENDINGS</p>
+      <h2 id="start-title">명령하고, 성장하고, 떠나라.</h2>
+      <p class="lead">공격은 자동입니다. 거점 영향권의 타일을 클릭해 개척하고, 적의 대공세로부터 도시를 지켜 성장시키십시오. 적 수도를 점령하거나 우주선을 완성해 행성을 탈출할 수 있습니다.</p>
+      <div class="briefing-grid two">
+        <article class="military"><span>MILITARY</span><strong>정복 승리</strong><p>생산기지를 끊고 세 적 문명의 수도를 공성 점령합니다.</p></article>
+        <article class="science"><span>EXODUS</span><strong>과학 승리</strong><p>우주항법을 연구하고 레벨 3 거점에서 우주선을 건조해 탈출합니다.</p></article>
       </div>
       <button id="start-button" class="primary-button" type="button">전선 투입</button>
     </div>
@@ -110,8 +122,8 @@
 
   <section id="augment-overlay" class="overlay" hidden aria-labelledby="augment-title">
     <div class="modal augment-modal">
-      <p class="eyebrow">AUGMENT SIGNAL ACQUIRED</p>
-      <h2 id="augment-title">전투 규칙을 선택하십시오.</h2>
+      <p class="eyebrow">DOCTRINE AUGMENT ACQUIRED</p>
+      <h2 id="augment-title">이번 성장을 선택하십시오.</h2>
       <div id="augment-options" class="augment-options"></div>
     </div>
   </section>
@@ -129,13 +141,33 @@
           <span>40 산업력</span><strong>군수공장</strong><small>생산량을 늘리고 산탄 보조포를 장착합니다.</small>
         </button>
         <button id="build-lab" class="build-card lab" type="button">
-          <span>45 산업력</span><strong>연구소</strong><small>관통력이 높은 자동 레일 포격을 가동합니다.</small>
+          <span>45 산업력</span><strong>연구소</strong><small>과학을 생산하고 관통력이 높은 자동 레일 포격을 가동합니다.</small>
         </button>
         <button id="build-silo" class="build-card silo" type="button">
           <span>55 산업력</span><strong>미사일 사일로</strong><small>적을 추적해 폭발하는 유도탄을 발사합니다.</small>
         </button>
       </div>
       <button id="build-cancel" class="quiet-button build-cancel" type="button">건설 취소</button>
+    </div>
+  </section>
+
+  <section id="tech-overlay" class="overlay" hidden aria-labelledby="tech-title">
+    <div class="modal tech-modal">
+      <p class="eyebrow">SCIENCE TREE</p>
+      <h2 id="tech-title">문명의 기준을 연구하십시오.</h2>
+      <p class="build-tile-info">과학을 소비해 개척 범위, 거점 성장, 우주 탈출 계획을 해금합니다.</p>
+      <div class="tech-options">
+        <button id="tech-frontier" class="tech-card frontier" type="button">
+          <span>25 과학</span><strong>개척 측량학</strong><small>거점 영향권 +1, 점령 단계 시간 -20%</small>
+        </button>
+        <button id="tech-urban" class="tech-card urban" type="button">
+          <span>30 과학</span><strong>도시공학</strong><small>아군 거점 성장 기준 -25%</small>
+        </button>
+        <button id="tech-aerospace" class="tech-card aerospace" type="button">
+          <span>60 과학</span><strong>우주항법</strong><small>레벨 3 거점의 우주선 건조 명령 해금</small>
+        </button>
+      </div>
+      <button id="tech-close" class="quiet-button build-cancel" type="button">연구 닫기</button>
     </div>
   </section>
 
@@ -159,8 +191,8 @@
   <section id="victory-overlay" class="overlay" hidden aria-labelledby="victory-title">
     <div class="modal compact-modal victory-modal">
       <p class="eyebrow">FRONTIER SECURED</p>
-      <h2 id="victory-title">육각 전선 확보.</h2>
-      <p>세 적 문명의 수도가 침묵하고 전장의 생산망을 확보했습니다.</p>
+      <h2 id="victory-title">문명 승리.</h2>
+      <p id="victory-copy">선택한 교리가 전장의 새로운 질서가 되었습니다.</p>
       <button id="victory-restart-button" class="primary-button" type="button">새 전선 개척</button>
     </div>
   </section>

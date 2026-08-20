@@ -14,12 +14,18 @@
     production: $("production-value"), productionRate: $("production-rate"), expansion: $("expansion-value"),
     terrain: $("terrain-value"), arsenal: $("arsenal-value"),
     enemyCapitals: $("enemy-capitals-value"), enemyTerritory: $("enemy-territory-value"), enemyPressure: $("enemy-pressure-value"),
+    science: $("science-value"), scienceRate: $("science-rate"), militaryProgress: $("military-progress"), scienceProgress: $("science-progress"),
+    selectedTile: $("selected-tile-value"), selectedAction: $("selected-action-value"),
+    foundBase: $("found-base-button"), shipButton: $("ship-button"), shipStatus: $("ship-status"),
+    defenseStatus: $("defense-status"),
+    techButton: $("tech-button"), techOverlay: $("tech-overlay"), techFrontier: $("tech-frontier"),
+    techUrban: $("tech-urban"), techAerospace: $("tech-aerospace"), techClose: $("tech-close"),
+    victoryTitle: $("victory-title"), victoryCopy: $("victory-copy"),
     augment: $("augment-overlay"), augmentOptions: $("augment-options"), pause: $("pause-overlay"),
     gameOver: $("game-over-overlay"), victory: $("victory-overlay"),
     start: $("start-button"), restart: $("restart-button"), resume: $("resume-button"),
     playAgain: $("play-again-button"), victoryRestart: $("victory-restart-button"),
-    touchStick: $("touch-stick"), touchStickKnob: $("touch-stick-knob"),
-    touchFire: $("touch-fire-zone"), pauseButton: $("pause-button"),
+    touchStick: $("touch-stick"), touchStickKnob: $("touch-stick-knob"), pauseButton: $("pause-button"),
     buildButton: $("build-button"), buildOverlay: $("build-overlay"), buildTileInfo: $("build-tile-info"),
     buildCancel: $("build-cancel"), buildOutpost: $("build-outpost"), buildFactory: $("build-factory"),
     buildLab: $("build-lab"), buildSilo: $("build-silo")
@@ -27,10 +33,11 @@
 
   const TAU = Math.PI * 2;
   const MAP_RADIUS = 8;
-  const CAPTURE_GOAL = 45;
-  const VICTORY_TIME = 8 * 60;
-  const CAPTURE_SECONDS = 2.2;
-  const EXPANSION_SECONDS = 16;
+  const WILD_CAP = 14;
+  const WILD_SPAWN_INTERVAL = 12;
+  const CLAIM_STAGE_SECONDS = 10;
+  const SIEGE_STAGE_SECONDS = 15;
+  const TECHS = Object.freeze({ frontier: 25, urban: 30, aerospace: 60 });
   const HEX_DIRECTIONS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
   const BUILDINGS = Object.freeze({ outpost: 30, factory: 40, lab: 45, silo: 55 });
   const ENEMY_CIVS = Object.freeze([
@@ -41,22 +48,28 @@
   const keys = new Set();
   const pointer = { clientX: 0, clientY: 0, inside: false };
   const touchMove = { pointerId: null, x: 0, y: 0 };
-  const touchAim = { pointerId: null, dirX: 1, dirY: 0, active: false };
   let view = { width: 0, height: 0, dpr: 1, scale: 1, hexSize: 62, cx: 0, cy: 0 };
   let state;
   let lastFrame = performance.now();
   let animationFrame = 0;
 
   const AUGMENTS = [
-    { title: "과충전 탄환", text: "수동 공격 피해 +35%", apply: (s) => { s.player.damage *= 1.35; } },
-    { title: "급속 장전", text: "수동 발사 간격 -22%", apply: (s) => { s.player.fireRate *= 0.78; } },
-    { title: "관통 코어", text: "탄환 관통 +1", apply: (s) => { s.player.pierce += 1; } },
-    { title: "반응로 동기화", text: "자동 펄스 속도 +25%", apply: (s) => { s.player.autoRate *= 0.75; } },
-    { title: "증폭 펄스", text: "자동 공격 피해 +40%", apply: (s) => { s.player.autoDamage *= 1.4; } },
-    { title: "자기장", text: "경험치 획득 범위 +45%", apply: (s) => { s.player.pickup *= 1.45; } },
-    { title: "기동 장갑", text: "이동 속도 +15%, 최대 체력 +12", apply: (s) => { s.player.speed *= 1.15; s.player.maxHp += 12; s.player.hp += 12; } },
-    { title: "응급 수복", text: "체력을 모두 회복하고 재생 +0.5/s", apply: (s) => { s.player.hp = s.player.maxHp; s.player.regen += 0.5; } },
-    { title: "위상 탄두", text: "탄환 크기와 속도 +25%", apply: (s) => { s.player.shotSize *= 1.25; s.player.shotSpeed *= 1.25; } }
+    { id: "charged-rounds", category: "combat", title: "과충전 탄환", text: "자동 주무기 피해 +35%", apply: (s) => { s.player.damage *= 1.35; } },
+    { id: "rapid-reload", category: "combat", title: "급속 장전", text: "자동 주무기 발사 간격 -22%", apply: (s) => { s.player.fireRate *= 0.78; } },
+    { id: "piercing-core", category: "combat", title: "관통 코어", text: "탄환 관통 +1", apply: (s) => { s.player.pierce += 1; } },
+    { id: "reactor-sync", category: "combat", title: "반응로 동기화", text: "자동 펄스 속도 +25%", apply: (s) => { s.player.autoRate *= 0.75; } },
+    { id: "amplified-pulse", category: "combat", title: "증폭 펄스", text: "자동 공격 피해 +40%", apply: (s) => { s.player.autoDamage *= 1.4; } },
+    { id: "targeting-array", category: "combat", title: "표적 연산기", text: "자동 주무기 사거리 +15%", apply: (s) => { s.player.attackRange *= 1.15; } },
+    { id: "mobile-armor", category: "combat", title: "기동 장갑", text: "이동 속도 +15%, 최대 체력 +12", apply: (s) => { s.player.speed *= 1.15; s.player.maxHp += 12; s.player.hp += 12; } },
+    { id: "field-repair", category: "combat", title: "응급 수복", text: "체력을 모두 회복하고 재생 +0.5/s", apply: (s) => { s.player.hp = s.player.maxHp; s.player.regen += 0.5; } },
+    { id: "phase-warhead", category: "combat", title: "위상 탄두", text: "탄환 크기와 속도 +25%", apply: (s) => { s.player.shotSize *= 1.25; s.player.shotSpeed *= 1.25; } },
+    { id: "chain-lightning", category: "combat", title: "연쇄 번개", text: "주기적으로 최대 3개의 적을 연쇄 타격", apply: (s) => { s.player.chainLevel += 1; s.player.chainClock = 0; } },
+    { id: "proximity-mines", category: "combat", title: "근접 지뢰", text: "주기적으로 광역 지뢰 설치", apply: (s) => { s.player.mineLevel += 1; s.player.mineClock = 0; } },
+    { id: "production-reserve", category: "industry", title: "비축 프로토콜", text: "산업력 즉시 +60", apply: (s) => { s.production += 60; } },
+    { id: "production-grid", category: "industry", title: "자동화 생산망", text: "산업력 생산량 +25%", apply: (s) => { s.productionMultiplier *= 1.25; } },
+    { id: "frontier-logistics", category: "industry", title: "개척 물류", text: "전초기지 확장 속도 +35%", apply: (s) => { s.expansionMultiplier *= 1.35; } },
+    { id: "research-cache", category: "science", title: "유적 해독", text: "과학 즉시 +20", apply: (s) => { s.science += 20; } },
+    { id: "research-network", category: "science", title: "연구 네트워크", text: "과학 생산량 +30%", apply: (s) => { s.scienceMultiplier *= 1.3; } }
   ];
 
   function coordinateHash(q, r) {
@@ -76,7 +89,9 @@
         const terrain = terrainRoll < 0.2 ? "crater" : terrainRoll < 0.4 ? "ridge" : terrainRoll < 0.65 ? "dunes" : "plain";
         const resource = resourceRoll < 0.08 ? "core" : resourceRoll < 0.2 ? "ore" : resourceRoll < 0.27 ? "ruins" : resourceRoll < 0.35 ? "garden" : null;
         hexes.push({ q, r, key: `${q},${r}`, terrain, resource, captured: q === 0 && r === 0,
-          building: q === 0 && r === 0 ? "command" : null, enemyCiv: null, enemyStructure: null, enemyNeutralized: false,
+          building: q === 0 && r === 0 ? "command" : null, baseLevel: q === 0 && r === 0 ? 1 : 0, baseGrowth: 0,
+          baseHp: q === 0 && r === 0 ? 200 : 0, baseMaxHp: q === 0 && r === 0 ? 200 : 0, defenseClock: 0, turretClock: 0,
+          claimStage: 0, claimProgress: 0, enemyCiv: null, enemyStructure: null, enemyNeutralized: false,
           discovered: false, visible: false, rewardClaimed: false });
       }
     }
@@ -89,25 +104,29 @@
     for (const civ of targetState.enemyCivs) {
       const capital = targetState.hexByKey.get(`${civ.q},${civ.r}`);
       for (const hex of targetState.hexes) if (hexDistance(hex, civ) <= 1 && !hex.captured) hex.enemyCiv = civ.id;
-      capital.enemyStructure = { type: "capital", hp: 340, maxHp: 340, spawnClock: 3 + targetState.enemyCivs.indexOf(civ) };
+      capital.enemyStructure = { type: "capital", hp: 340, maxHp: 340, level: 1, growthClock: 70, breached: false,
+        spawnClock: 3 + targetState.enemyCivs.indexOf(civ), barrageClock: 2.5, barrageAngle: 0 };
       const foundry = targetState.hexByKey.get(`${civ.foundryQ},${civ.foundryR}`);
       foundry.enemyCiv = civ.id;
-      foundry.enemyStructure = { type: "foundry", hp: 170, maxHp: 170, spawnClock: 1.5 + targetState.enemyCivs.indexOf(civ) * 0.7 };
+      foundry.enemyStructure = { type: "foundry", hp: 170, maxHp: 170, level: 1, growthClock: 70, spawnClock: 1.5 + targetState.enemyCivs.indexOf(civ) * 0.7 };
     }
   }
 
   function freshState(running = true) {
     const hexes = makeHexes();
     const s = {
-      running, paused: !running, ended: false, choosing: false, menu: false, won: false,
-      time: 0, captureKey: null, captureProgress: 0, expansionProgress: 0, expansionKey: null,
-      kills: 0, production: 25, productionRate: 0, enemyId: 0,
+      running, paused: !running, ended: false, choosing: false, menu: false, won: false, victoryType: null,
+      time: 0, selectedKey: null, activeOrder: null, assaultClock: 55, assaultId: 0, assault: null,
+      kills: 0, production: 25, productionRate: 0, productionMultiplier: 1, expansionMultiplier: 1,
+      science: 0, scienceRate: 0, scienceMultiplier: 1, enemyId: 0, wildSpawnClock: 8, wildSpawnIndex: 0,
+      augmentLevels: {}, augmentChoices: [], techs: { frontier: false, urban: false, aerospace: false }, ship: null,
       camera: { x: 0, y: 0 }, hexes, hexByKey: new Map(hexes.map((hex) => [hex.key, hex])),
-      enemies: [], projectiles: [], drops: [], particles: [], messages: [],
+      enemies: [], projectiles: [], enemyShots: [], particles: [], messages: [],
       player: { x: 0, y: 0, radius: 13, speed: 210, hp: 100, maxHp: 100, regen: 0,
         level: 1, xp: 0, nextXp: 18, damage: 23, fireRate: 0.26, fireClock: 0,
         shotSpeed: 590, shotSize: 5, pierce: 0, autoDamage: 16, autoRate: 0.82,
-        autoClock: 0.35, railClock: 1.2, missileClock: 1.7, pickup: 70, invulnerable: 0, orbitAngle: 0 }
+        autoClock: 0.35, railClock: 1.2, missileClock: 1.7, chainLevel: 0, chainClock: 0,
+        mineLevel: 0, mineClock: 0, attackRange: 1, invulnerable: 0, orbitAngle: 0 }
     };
     setupEnemyCivs(s);
     revealAround(s, 0, 0, 2);
@@ -123,7 +142,7 @@
   function reset(start = true) {
     state = freshState(start); keys.clear(); clearTouchInput();
     setOverlay(ui.augment, false); setOverlay(ui.pause, false); setOverlay(ui.gameOver, false);
-    setOverlay(ui.victory, false); setOverlay(ui.buildOverlay, false);
+    setOverlay(ui.victory, false); setOverlay(ui.buildOverlay, false); setOverlay(ui.techOverlay, false);
     if (start) lastFrame = performance.now();
     updateHud(); return snapshot();
   }
@@ -204,17 +223,23 @@
   }
 
   function productionRate() {
-    return 1 + Math.max(0, capturedCount() - 1) * 0.12 + state.hexes.filter((h) => h.captured && h.resource === "ore").length * 0.35 + buildingCount("factory") * 1.75;
+    return (1 + Math.max(0, capturedCount() - 1) * 0.12 + state.hexes.filter((h) => h.captured && h.resource === "ore").length * 0.35 + buildingCount("factory") * 1.75) * state.productionMultiplier;
+  }
+
+  function scienceRate() {
+    const ruins = state.hexes.filter((hex) => hex.captured && hex.resource === "ruins").length;
+    return (buildingCount("lab") * 0.8 + ruins * 0.35) * state.scienceMultiplier;
   }
 
   function update(dt) {
     if (!state.running || state.paused || state.choosing || state.menu || state.ended) return;
-    state.time += dt; state.productionRate = productionRate(); state.production += state.productionRate * dt;
-    updatePlayer(dt); updateVisibility(); updateCapture(dt); updateExpansion(dt); updateBuildingWeapons(dt);
-    updateEnemyCivs(dt); updateEnemies(dt); updateProjectiles(dt); updateDrops(dt); updateParticles(dt);
+    state.time += dt; state.productionRate = productionRate(); state.scienceRate = scienceRate();
+    state.production += state.productionRate * dt; state.science += state.scienceRate * dt;
+    updatePlayer(dt); updateVisibility(); updateOrders(dt); updateBaseGrowth(dt); updateShip(dt); updateBuildingWeapons(dt); updateBaseTurrets(dt);
+    updateEnemyCivs(dt); updateAssault(dt); updateWildEnemies(dt); updateEnemies(dt); updateProjectiles(dt); updateEnemyShots(dt); updateParticles(dt);
     state.camera.x += (state.player.x - state.camera.x) * Math.min(1, dt * 8);
     state.camera.y += (state.player.y - state.camera.y) * Math.min(1, dt * 8);
-    if (state.enemyCivs.every((civ) => civ.defeated) || state.time >= VICTORY_TIME || capturedCount() >= CAPTURE_GOAL) finish(true);
+    if (state.enemyCivs.every((civ) => civ.defeated)) finish(true, "military");
     updateHud();
   }
 
@@ -229,17 +254,16 @@
       if (!hexAt(p.x, p.y)) { p.x = oldX; p.y = oldY; }
     }
     p.fireClock = Math.max(0, p.fireClock - dt); p.autoClock -= dt; p.railClock -= dt; p.missileClock -= dt;
+    p.chainClock -= dt; p.mineClock -= dt;
     p.invulnerable = Math.max(0, p.invulnerable - dt); p.orbitAngle += dt * 2.8;
     const gardenRegen = state.hexes.filter((h) => h.captured && h.resource === "garden").length * 0.06;
     p.hp = Math.min(p.maxHp, p.hp + (p.regen + gardenRegen) * dt);
-    if (touchAim.active) manualShoot(); if (p.autoClock <= 0) autoAttack();
+    if (p.fireClock <= 0) autoPrimary(); if (p.autoClock <= 0) autoAttack();
+    if (p.chainLevel > 0 && p.chainClock <= 0) chainLightning();
+    if (p.mineLevel > 0 && p.mineClock <= 0) deployMine();
   }
 
-  function aimPoint() {
-    if (touchAim.active) return { x: state.player.x + touchAim.dirX * 1000, y: state.player.y + touchAim.dirY * 1000 };
-    if (pointer.inside) return screenToWorld(pointer.clientX, pointer.clientY);
-    return nearestHostile() || { x: state.player.x + 1, y: state.player.y };
-  }
+  function aimPoint() { return nearestHostile(view.hexSize * 5.5 * state.player.attackRange) || { x: state.player.x + 1, y: state.player.y }; }
 
   function nearestEnemy(maxDistance = Infinity) {
     let best = null; let distance = maxDistance;
@@ -254,6 +278,7 @@
     let best = nearestEnemy(maxDistance); let distance = best ? Math.hypot(best.x - state.player.x, best.y - state.player.y) : maxDistance;
     const structureRange = Math.min(maxDistance, view.hexSize * 6.5);
     for (const hex of enemyStructures()) {
+      if (hex.enemyStructure.breached) continue;
       if (!hex.discovered) continue;
       const center = axialToWorld(hex.q, hex.r); const d = Math.hypot(center.x - state.player.x, center.y - state.player.y);
       if (d <= structureRange && d < distance) { best = { combatId: `structure:${hex.key}`, structureKey: hex.key, x: center.x, y: center.y }; distance = d; }
@@ -263,52 +288,107 @@
 
   function addProjectile(kind, x, y, angle, speed, radius, damage, life, pierce, color, extra = {}) {
     state.projectiles.push({ kind, x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      radius, damage, life, pierce, color, hit: new Set(), ...extra });
+      radius, damage, life, pierce, color, hit: new Set(), originX: x, originY: y, traveled: 0,
+      maxRange: speed > 0 ? speed * life : null, ...extra });
   }
 
-  function manualShoot() {
-    if (!state.running || state.paused || state.choosing || state.menu || state.ended || state.player.fireClock > 0) return;
-    const p = state.player; const target = aimPoint(); const angle = Math.atan2(target.y - p.y, target.x - p.x);
-    addProjectile("pulse", p.x, p.y, angle, p.shotSpeed, p.shotSize, p.damage, 1.25, p.pierce, "#ffcf5a");
+  function autoPrimary() {
+    const p = state.player; const target = nearestHostile(view.hexSize * 5.5 * p.attackRange); p.fireClock = p.fireRate;
+    if (!target) return false;
+    const angle = Math.atan2(target.y - p.y, target.x - p.x);
+    addProjectile("pulse", p.x, p.y, angle, p.shotSpeed, p.shotSize, p.damage, 1.25, p.pierce, "#ffcf5a", { maxRange: view.hexSize * 5.75 });
     const factories = buildingCount("factory");
     for (let i = 0; i < factories; i += 1) {
       const spread = 0.1 + i * 0.045;
-      addProjectile("scatter", p.x, p.y, angle - spread, p.shotSpeed * 0.9, p.shotSize * 0.75, p.damage * 0.42, 1.05, 0, "#ff9f43");
-      addProjectile("scatter", p.x, p.y, angle + spread, p.shotSpeed * 0.9, p.shotSize * 0.75, p.damage * 0.42, 1.05, 0, "#ff9f43");
+      addProjectile("scatter", p.x, p.y, angle - spread, p.shotSpeed * 0.9, p.shotSize * 0.75, p.damage * 0.42, 1.05, 0, "#ff9f43", { maxRange: view.hexSize * 4.5 });
+      addProjectile("scatter", p.x, p.y, angle + spread, p.shotSpeed * 0.9, p.shotSize * 0.75, p.damage * 0.42, 1.05, 0, "#ff9f43", { maxRange: view.hexSize * 4.5 });
     }
-    p.fireClock = p.fireRate;
+    return true;
   }
 
   function autoAttack() {
-    const p = state.player; const target = nearestHostile(view.hexSize * 5.5); p.autoClock = p.autoRate;
+    const p = state.player; const target = nearestHostile(view.hexSize * 5.5 * p.attackRange); p.autoClock = p.autoRate;
     if (!target) return;
     const x = p.x + Math.cos(p.orbitAngle) * 34; const y = p.y + Math.sin(p.orbitAngle) * 34;
-    addProjectile("orbital", x, y, Math.atan2(target.y - y, target.x - x), 420, 8, p.autoDamage, 1.4, 1, "#63e6ff");
+    addProjectile("orbital", x, y, Math.atan2(target.y - y, target.x - x), 420, 8, p.autoDamage, 1.4, 1, "#63e6ff", { maxRange: view.hexSize * 5.5 });
     burst(x, y, "#63e6ff", 5);
   }
 
+  function chainLightning() {
+    const p = state.player; p.chainClock = Math.max(1.4, 3.8 - p.chainLevel * 0.35);
+    const targets = state.enemies.map((enemy) => ({ ...enemy, combatId: `enemy:${enemy.id}` }))
+      .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+    if (!targets.length) {
+      const structure = nearestHostile(view.hexSize * 5.5);
+      if (structure?.structureKey) targets.push(structure);
+    }
+    let from = { x: p.x, y: p.y }; let hits = 0;
+    for (const target of targets) {
+      if (hits >= Math.min(5, 2 + p.chainLevel) || Math.hypot(target.x - from.x, target.y - from.y) > view.hexSize * 3.2) continue;
+      state.particles.push({ kind: "line", x: from.x, y: from.y, x2: target.x, y2: target.y, life: 0.16, maxLife: 0.16, color: "#9ffcff", size: 3 });
+      if (target.structureKey) damageEnemyStructure(state.hexByKey.get(target.structureKey), 20 * (1 + p.chainLevel * 0.3));
+      else {
+        const index = state.enemies.findIndex((enemy) => enemy.id === target.id);
+        if (index >= 0) { state.enemies[index].hp -= 20 * (1 + p.chainLevel * 0.3); if (state.enemies[index].hp <= 0) killEnemy(index); }
+      }
+      from = target; hits += 1;
+    }
+  }
+
+  function deployMine() {
+    const p = state.player; p.mineClock = Math.max(2.2, 5.2 - p.mineLevel * 0.45);
+    addProjectile("mine", p.x, p.y, 0, 0, 9, 34 * (1 + p.mineLevel * 0.28), 7.5, 0, "#72ef9f", { aoe: 62 + p.mineLevel * 5 });
+  }
+
   function updateBuildingWeapons() {
-    const p = state.player; const target = nearestHostile();
+    const p = state.player; const target = nearestHostile(view.hexSize * 7.5);
     if (buildingCount("lab") > 0 && p.railClock <= 0) {
       p.railClock = Math.max(0.8, 3.2 / buildingCount("lab"));
-      if (target) addProjectile("rail", p.x, p.y, Math.atan2(target.y - p.y, target.x - p.x), 980, 4, 34, 1.35, 5, "#c8a8ff");
+      if (target) addProjectile("rail", p.x, p.y, Math.atan2(target.y - p.y, target.x - p.x), 980, 4, 34, 1.35, 5, "#c8a8ff", { maxRange: view.hexSize * 7.5 });
     }
     if (buildingCount("silo") > 0 && p.missileClock <= 0) {
       p.missileClock = Math.max(1.2, 4.8 / buildingCount("silo"));
-      if (target) addProjectile("missile", p.x, p.y, Math.atan2(target.y - p.y, target.x - p.x), 250, 7, 42, 4, 0, "#ff6b6b", { targetId: target.id, targetStructureKey: target.structureKey, homing: true, aoe: 58 });
+      if (target) addProjectile("missile", p.x, p.y, Math.atan2(target.y - p.y, target.x - p.x), 250, 7, 42, 4, 0, "#ff6b6b", { targetId: target.id, targetStructureKey: target.structureKey, homing: true, aoe: 58, maxRange: view.hexSize * 7.5 });
+    }
+  }
+
+  function baseTurretStats(level) {
+    return { range: view.hexSize * (2.2 + level * 0.45), damage: 10 + level * 8, rate: 1.25 - level * 0.2 };
+  }
+
+  function baseTurretTarget(base, range) {
+    const center = axialToWorld(base.q, base.r);
+    return state.enemies.filter((enemy) => Math.hypot(enemy.x - center.x, enemy.y - center.y) <= range)
+      .sort((a, b) => Number(b.targetBaseKey === base.key) - Number(a.targetBaseKey === base.key) ||
+        Math.hypot(a.x - center.x, a.y - center.y) - Math.hypot(b.x - center.x, b.y - center.y))[0] || null;
+  }
+
+  function updateBaseTurrets(dt) {
+    for (const base of playerBases()) {
+      base.turretClock = Math.max(0, (base.turretClock || 0) - dt);
+      if (base.turretClock > 0) continue;
+      const stats = baseTurretStats(base.baseLevel); const target = baseTurretTarget(base, stats.range);
+      if (!target) continue;
+      const center = axialToWorld(base.q, base.r); const angle = Math.atan2(target.y - center.y, target.x - center.x);
+      addProjectile("base", center.x, center.y, angle, 520, 5, stats.damage, 1.2, 0, "#72ef9f",
+        { maxRange: stats.range, sourceBaseKey: base.key, targetId: target.id, priorityAssault: target.targetBaseKey === base.key });
+      base.turretClock = stats.rate;
     }
   }
 
   function updateEnemies(dt) {
     const p = state.player;
     for (const enemy of state.enemies) {
-      const angle = Math.atan2(p.y - enemy.y, p.x - enemy.x);
+      const base = enemy.targetBaseKey && state.hexByKey.get(enemy.targetBaseKey);
+      const target = base?.baseLevel ? axialToWorld(base.q, base.r) : p;
+      const angle = Math.atan2(target.y - enemy.y, target.x - enemy.x);
       enemy.x += Math.cos(angle) * enemy.speed * dt; enemy.y += Math.sin(angle) * enemy.speed * dt; enemy.touch -= dt;
-      if (Math.hypot(enemy.x - p.x, enemy.y - p.y) < enemy.radius + p.radius && enemy.touch <= 0) { enemy.touch = 0.65; hurtPlayer(enemy.damage); }
+      if (base?.baseLevel && Math.hypot(enemy.x - target.x, enemy.y - target.y) < enemy.radius + 16 && enemy.touch <= 0) { enemy.touch = 0.65; damageBase(base, enemy.damage); }
+      else if (Math.hypot(enemy.x - p.x, enemy.y - p.y) < enemy.radius + p.radius && enemy.touch <= 0) { enemy.touch = 0.65; hurtPlayer(enemy.damage); }
     }
   }
 
-  function spawnEnemyAt(hex, civ) {
+  function spawnEnemyAt(hex, civ, extra = {}) {
     if (!hex?.enemyStructure || civ.defeated) return false;
     const center = axialToWorld(hex.q, hex.r); const territoryScale = 1 + Math.max(0, enemyTerritoryCount(civ.id) - 7) * 0.018;
     const difficulty = (1 + state.time / 420) * territoryScale;
@@ -316,12 +396,84 @@
     const hp = (brute ? 72 : 32) * difficulty;
     state.enemies.push({ id: ++state.enemyId, originCiv: civ.id, originStructure: hex.enemyStructure.type, originKey: hex.key,
       x: center.x, y: center.y, radius: brute ? 18 : 12, speed: (brute ? 54 : 80) + Math.min(18, state.time / 35),
-      hp, maxHp: hp, damage: brute ? 16 : 10, xp: brute ? 8 : 4, touch: 0, brute });
+      hp, maxHp: hp, damage: brute ? 16 : 10, xp: brute ? 8 : 4, touch: 0, brute, ...extra });
     if (hex.discovered) {
       burst(center.x, center.y, civ.color, 14);
       state.messages.push({ text: `${civ.name} 출격`, x: center.x, y: center.y - 20, life: 1.25 });
     }
     return true;
+  }
+
+  function triggerAssault(forcedKey) {
+    if (state.assault) return false;
+    const bases = playerBases(); const structures = enemyStructures().filter((hex) => !hex.enemyStructure.breached);
+    const target = forcedKey ? state.hexByKey.get(forcedKey) : bases[Math.floor(state.time / 90) % Math.max(1, bases.length)];
+    if (!target?.baseLevel || !structures.length) return false;
+    const id = ++state.assaultId; let spawned = 0;
+    for (let i = 0; i < 12; i += 1) {
+      const source = structures[i % structures.length]; const civ = state.enemyCivs.find((item) => item.id === source.enemyCiv);
+      if (spawnEnemyAt(source, civ, { assaultId: id, targetBaseKey: target.key })) spawned += 1;
+    }
+    if (!spawned) return false;
+    state.assault = { id, targetKey: target.key, total: spawned, result: null }; target.defenseClock = 4;
+    const center = axialToWorld(target.q, target.r); state.messages.push({ text: "대규모 공세 감지", x: center.x, y: center.y - 28, life: 3 });
+    return true;
+  }
+
+  function completeAssault() {
+    const assault = state.assault; if (!assault) return;
+    const base = state.hexByKey.get(assault.targetKey);
+    if (base?.baseLevel) {
+      base.baseGrowth += 25; base.baseHp = Math.min(base.baseMaxHp, base.baseHp + 45);
+      state.production += 40; state.science += 12;
+      const center = axialToWorld(base.q, base.r); state.messages.push({ text: "공세 방어 성공 · 산업 +40 · 과학 +12", x: center.x, y: center.y - 28, life: 3 });
+    }
+    state.assault = null; state.assaultClock = 90;
+  }
+
+  function updateAssault(dt) {
+    if (state.assault) {
+      if (!state.enemies.some((enemy) => enemy.assaultId === state.assault.id)) completeAssault();
+      return;
+    }
+    state.assaultClock -= dt;
+    if (state.assaultClock <= 0) { if (!triggerAssault()) state.assaultClock = 15; }
+  }
+
+  function damageBase(base, amount) {
+    if (!base?.baseLevel) return;
+    base.defenseClock = 2; base.baseHp -= amount * (1 - (base.baseLevel - 1) * 0.12);
+    if (base.baseHp > 0) return;
+    base.baseLevel = Math.max(1, base.baseLevel - 1); base.baseGrowth = 0; base.baseMaxHp = base.building === "command" ? 200 + (base.baseLevel - 1) * 50 : 120 + (base.baseLevel - 1) * 50; base.baseHp = base.baseMaxHp * 0.35;
+    if (state.assault?.targetKey === base.key) {
+      for (const enemy of state.enemies) if (enemy.assaultId === state.assault.id) { enemy.assaultId = null; enemy.targetBaseKey = null; }
+      state.assault = null; state.assaultClock = 90;
+    }
+  }
+
+  function spawnWildEnemy(forcedHex) {
+    const wildCount = state.enemies.filter((enemy) => enemy.originCiv === "wild").length;
+    if (wildCount >= WILD_CAP) return false;
+    const playerHex = hexAt(state.player.x, state.player.y);
+    const eligible = state.hexes.filter((hex) => !hex.captured && !hex.enemyCiv && !hex.enemyNeutralized &&
+      (!playerHex || (hexDistance(hex, playerHex) >= 3 && hexDistance(hex, playerHex) <= 6)));
+    if (!eligible.length) return false;
+    const ordered = eligible.sort((a, b) => coordinateHash(a.q + state.wildSpawnIndex * 7, a.r - state.wildSpawnIndex * 11) -
+      coordinateHash(b.q + state.wildSpawnIndex * 7, b.r - state.wildSpawnIndex * 11));
+    const hex = forcedHex && eligible.includes(forcedHex) ? forcedHex : ordered[0];
+    const center = axialToWorld(hex.q, hex.r); const scale = 1 + state.time / 600; const hp = 26 * scale;
+    state.enemies.push({ id: ++state.enemyId, originCiv: "wild", originStructure: "wild", originKey: hex.key,
+      x: center.x, y: center.y, radius: 11, speed: 72 + Math.min(15, state.time / 45), hp, maxHp: hp,
+      damage: 8, xp: 3, touch: 0, brute: false, wild: true });
+    state.wildSpawnIndex += 1;
+    if (hex.discovered) burst(center.x, center.y, "#f5b95f", 9);
+    return true;
+  }
+
+  function updateWildEnemies(dt) {
+    state.wildSpawnClock -= dt;
+    if (state.wildSpawnClock > 0) return;
+    spawnWildEnemy(); state.wildSpawnClock = WILD_SPAWN_INTERVAL;
   }
 
   function enemyExpansionCandidates(civ) {
@@ -342,15 +494,37 @@
     return true;
   }
 
+  function fireCapitalBarrage(hex, civ) {
+    const structure = hex.enemyStructure; const center = axialToWorld(hex.q, hex.r);
+    const aim = Math.atan2(state.player.y - center.y, state.player.x - center.x) + Math.sin(structure.barrageAngle) * 0.24;
+    for (let i = -4; i <= 4; i += 1) {
+      const angle = aim + i * 0.14; state.enemyShots.push({ x: center.x, y: center.y, vx: Math.cos(angle) * 205,
+        vy: Math.sin(angle) * 205, radius: 6, damage: 12 + (structure.level - 1) * 2, life: 5, color: civ.color,
+        originX: center.x, originY: center.y, traveled: 0, maxRange: view.hexSize * 5.2 });
+    }
+    structure.barrageAngle += 0.7; structure.barrageClock = Math.max(2.2, 3.4 - structure.level * 0.25);
+    burst(center.x, center.y, civ.color, 18);
+  }
+
   function updateEnemyCivs(dt) {
     for (const civ of state.enemyCivs) {
       if (civ.defeated) continue;
       for (const hex of enemyStructures(civ.id)) {
-        const structure = hex.enemyStructure; structure.spawnClock -= dt;
+        const structure = hex.enemyStructure; structure.spawnClock -= dt; structure.growthClock -= dt;
+        if (structure.growthClock <= 0 && structure.level < 3) {
+          structure.level += 1; structure.growthClock += 70;
+          const growth = structure.type === "capital" ? 60 : 35;
+          structure.maxHp += growth; structure.hp += growth;
+        }
+        if (structure.type === "capital" && !structure.breached) {
+          const center = axialToWorld(hex.q, hex.r); const close = Math.hypot(state.player.x - center.x, state.player.y - center.y) <= view.hexSize * 4.8;
+          if (close) { structure.barrageClock -= dt; if (structure.barrageClock <= 0) fireCapitalBarrage(hex, civ); }
+          else structure.barrageClock = Math.max(structure.barrageClock, 1.2);
+        }
         if (structure.spawnClock <= 0) {
           spawnEnemyAt(hex, civ);
           const base = structure.type === "capital" ? 10 : 7.5;
-          structure.spawnClock = Math.max(4.5, base - state.time / 240 - enemyTerritoryCount(civ.id) * 0.025);
+          structure.spawnClock = Math.max(3.6, base - state.time / 240 - enemyTerritoryCount(civ.id) * 0.025 - (structure.level - 1) * 0.8);
         }
       }
       civ.expansionClock -= dt;
@@ -379,16 +553,22 @@
     for (const hex of state.hexes) if (hex.enemyCiv === civ.id) { hex.enemyCiv = null; hex.enemyStructure = null; }
     burst(capital.x, capital.y, civ.color, 42);
     state.messages.push({ text: `${civ.name} 문명 붕괴`, x: capital.x, y: capital.y - 28, life: 2.8 });
-    if (state.enemyCivs.every((item) => item.defeated)) finish(true);
+    if (state.enemyCivs.every((item) => item.defeated)) finish(true, "military");
   }
 
   function damageEnemyStructure(hex, damage) {
     if (!hex?.enemyStructure || damage <= 0) return false;
-    const structure = hex.enemyStructure; structure.hp -= damage;
+    const structure = hex.enemyStructure; const civ = state.enemyCivs.find((item) => item.id === hex.enemyCiv);
+    if (structure.breached) return false;
+    const shielded = structure.type === "capital" && enemyStructures(civ?.id).some((item) => item.enemyStructure.type === "foundry");
+    structure.hp -= damage * (shielded ? 0.15 : 1);
     const center = axialToWorld(hex.q, hex.r); burst(center.x, center.y, "#ffcfda", 5);
+    if (structure.type === "capital" && shielded && structure.hp <= 0) { structure.hp = 1; return true; }
     if (structure.hp > 0) return true;
-    const civ = state.enemyCivs.find((item) => item.id === hex.enemyCiv);
-    if (structure.type === "capital") defeatEnemyCiv(civ);
+    if (structure.type === "capital") {
+      structure.hp = 0; structure.breached = true;
+      state.messages.push({ text: "수도 방어선 붕괴 · 점령 명령 필요", x: center.x, y: center.y - 24, life: 3 });
+    }
     else {
       hex.enemyStructure = null; hex.enemyCiv = null; hex.enemyNeutralized = true;
       burst(center.x, center.y, civ?.color || "#ef476f", 24);
@@ -403,15 +583,15 @@
       if (shot.homing) {
         const targetHex = shot.targetStructureKey && state.hexByKey.get(shot.targetStructureKey);
         const targetCenter = targetHex?.enemyStructure ? axialToWorld(targetHex.q, targetHex.r) : null;
-        const target = targetCenter || state.enemies.find((enemy) => enemy.id === shot.targetId) || nearestHostile();
+        const target = targetCenter || state.enemies.find((enemy) => enemy.id === shot.targetId);
         if (target) {
           const speed = Math.hypot(shot.vx, shot.vy); const desired = Math.atan2(target.y - shot.y, target.x - shot.x);
           const current = Math.atan2(shot.vy, shot.vx); const turn = Math.atan2(Math.sin(desired - current), Math.cos(desired - current));
           const angle = current + Math.max(-3.5 * dt, Math.min(3.5 * dt, turn)); shot.vx = Math.cos(angle) * speed; shot.vy = Math.sin(angle) * speed;
         }
       }
-      shot.x += shot.vx * dt; shot.y += shot.vy * dt; shot.life -= dt;
-      let remove = shot.life <= 0;
+      const traveled = Math.hypot(shot.vx * dt, shot.vy * dt); shot.x += shot.vx * dt; shot.y += shot.vy * dt; shot.traveled += traveled; shot.life -= dt;
+      let remove = shot.life <= 0 || (shot.maxRange !== null && shot.traveled > shot.maxRange);
       for (let j = state.enemies.length - 1; j >= 0 && !remove; j -= 1) {
         const enemy = state.enemies[j];
         const hitId = `enemy:${enemy.id}`;
@@ -421,7 +601,7 @@
         if (enemy.hp <= 0) killEnemy(j);
         if (shot.pierce <= 0) remove = true; else shot.pierce -= 1;
       }
-      for (const hex of [...enemyStructures()]) {
+      for (const hex of shot.kind === "base" ? [] : [...enemyStructures()]) {
         if (remove) break;
         const hitId = `structure:${hex.key}`; const center = axialToWorld(hex.q, hex.r);
         const radius = hex.enemyStructure.type === "capital" ? 20 : 15;
@@ -434,20 +614,20 @@
     }
   }
 
-  function killEnemy(index) {
-    const enemy = state.enemies[index]; state.enemies.splice(index, 1); state.kills += 1;
-    state.drops.push({ x: enemy.x, y: enemy.y, value: enemy.xp, radius: enemy.brute ? 7 : 5, t: 0 });
-    burst(enemy.x, enemy.y, enemy.brute ? "#ff6b6b" : "#e24b63", enemy.brute ? 12 : 7);
+  function updateEnemyShots(dt) {
+    const p = state.player;
+    for (let i = state.enemyShots.length - 1; i >= 0; i -= 1) {
+      const shot = state.enemyShots[i]; const traveled = Math.hypot(shot.vx * dt, shot.vy * dt);
+      shot.x += shot.vx * dt; shot.y += shot.vy * dt; shot.traveled += traveled; shot.life -= dt;
+      if (shot.traveled > shot.maxRange || shot.life <= 0 || !hexAt(shot.x, shot.y)) state.enemyShots.splice(i, 1);
+      else if (Math.hypot(shot.x - p.x, shot.y - p.y) <= shot.radius + p.radius) { hurtPlayer(shot.damage); state.enemyShots.splice(i, 1); }
+    }
   }
 
-  function updateDrops(dt) {
-    const p = state.player;
-    for (let i = state.drops.length - 1; i >= 0; i -= 1) {
-      const drop = state.drops[i]; drop.t += dt; if (drop.t > 45) { state.drops.splice(i, 1); continue; }
-      const distance = Math.hypot(p.x - drop.x, p.y - drop.y);
-      if (distance < p.pickup) { const speed = 170 + (p.pickup - distance) * 6; drop.x += (p.x - drop.x) / Math.max(1, distance) * speed * dt; drop.y += (p.y - drop.y) / Math.max(1, distance) * speed * dt; }
-      if (distance < p.radius + drop.radius + 4) { addXp(drop.value); state.drops.splice(i, 1); }
-    }
+  function killEnemy(index) {
+    const enemy = state.enemies[index]; state.enemies.splice(index, 1); state.kills += 1;
+    addXp(enemy.xp);
+    burst(enemy.x, enemy.y, enemy.brute ? "#ff6b6b" : "#e24b63", enemy.brute ? 12 : 7);
   }
 
   function addXp(amount) {
@@ -457,13 +637,24 @@
   }
 
   function showAugments() {
-    state.choosing = true; const choices = [...AUGMENTS].sort(() => Math.random() - 0.5).slice(0, 3);
+    state.choosing = true;
+    const choices = ["combat", "industry", "science"].map((category) => {
+      const pool = AUGMENTS.filter((augment) => augment.category === category);
+      return pool[Math.floor(Math.random() * pool.length)];
+    });
+    state.augmentChoices = choices.map((augment) => augment.id);
     if (ui.augmentOptions) ui.augmentOptions.replaceChildren(...choices.map((augment, index) => {
       const button = document.createElement("button"); button.type = "button"; button.className = "augment-card";
-      button.innerHTML = `<span>0${index + 1}</span><strong>${augment.title}</strong><small>${augment.text}</small>`;
-      button.addEventListener("click", () => { augment.apply(state); state.choosing = false; setOverlay(ui.augment, false); updateHud(); canvas.focus(); }); return button;
+      button.dataset.augmentId = augment.id; button.dataset.category = augment.category;
+      button.innerHTML = `<span>${augment.category.toUpperCase()} · 0${index + 1}</span><strong>${augment.title}</strong><small>${augment.text}</small>`;
+      button.addEventListener("click", () => { applyAugment(augment.id); state.choosing = false; state.augmentChoices = []; setOverlay(ui.augment, false); updateHud(); canvas.focus(); }); return button;
     }));
     setOverlay(ui.augment, true);
+  }
+
+  function applyAugment(id) {
+    const augment = AUGMENTS.find((item) => item.id === id); if (!augment) return false;
+    augment.apply(state); state.augmentLevels[id] = (state.augmentLevels[id] || 0) + 1; return true;
   }
 
   function captureHex(hex, source = "manual") {
@@ -480,35 +671,104 @@
     return true;
   }
 
-  function updateCapture(dt) {
-    const hex = hexAt(state.player.x, state.player.y);
-    if (!hex || !isAccessible(hex)) { state.captureKey = null; state.captureProgress = Math.max(0, state.captureProgress - dt * 2); return; }
-    if (state.captureKey !== hex.key) { state.captureKey = hex.key; state.captureProgress = 0; }
-    state.captureProgress += dt;
-    if (state.captureProgress >= CAPTURE_SECONDS) { captureHex(hex, "manual"); state.captureProgress = 0; state.captureKey = null; }
+  function playerBases() { return state.hexes.filter((hex) => hex.captured && (hex.building === "command" || hex.building === "outpost")); }
+
+  function baseClaimRadius(base) { return (base.baseLevel || 1) + 1 + (state.techs.frontier ? 1 : 0); }
+  function claimStageDuration() { return CLAIM_STAGE_SECONDS * (state.techs.frontier ? 0.8 : 1) / state.expansionMultiplier; }
+
+  function claimBaseFor(hex) {
+    if (!hex || hex.captured || hex.enemyCiv || !neighbors(hex).some((item) => item.captured)) return null;
+    return playerBases().filter((base) => hexDistance(base, hex) <= baseClaimRadius(base))
+      .sort((a, b) => hexDistance(a, hex) - hexDistance(b, hex))[0] || null;
   }
 
-  function expansionCandidates() {
-    const outposts = state.hexes.filter((hex) => hex.building === "outpost");
-    if (!outposts.length) return [];
-    const result = new Map();
-    for (const captured of state.hexes.filter((hex) => hex.captured)) {
-      for (const hex of neighbors(captured)) if (!hex.captured && !hex.enemyCiv) result.set(hex.key, hex);
+  function siegeBaseFor(hex) {
+    return playerBases().filter((base) => hexDistance(base, hex) <= baseClaimRadius(base))
+      .sort((a, b) => hexDistance(a, hex) - hexDistance(b, hex))[0] || null;
+  }
+
+  function setOrder(type, hex, base) {
+    if (!hex || !base) return false;
+    if (state.activeOrder?.type === "claim") {
+      const previous = state.hexByKey.get(state.activeOrder.key);
+      if (previous) previous.claimProgress = 0;
     }
-    return [...result.values()].sort((a, b) => {
-      const ad = Math.min(...outposts.map((outpost) => hexDistance(a, outpost)));
-      const bd = Math.min(...outposts.map((outpost) => hexDistance(b, outpost)));
-      const af = neighbors(a).filter((h) => h.captured).length; const bf = neighbors(b).filter((h) => h.captured).length;
-      return ad - bd || bf - af || coordinateHash(a.q, a.r) - coordinateHash(b.q, b.r);
-    });
+    const stage = type === "claim" ? hex.claimStage : 0;
+    state.activeOrder = { type, key: hex.key, baseKey: base.key, stage, progress: 0 };
+    return true;
   }
 
-  function updateExpansion(dt) {
-    const count = buildingCount("outpost"); const candidates = expansionCandidates();
-    if (!count || !candidates.length) { state.expansionProgress = 0; state.expansionKey = null; return; }
-    if (!state.expansionKey || !state.hexByKey.get(state.expansionKey) || state.hexByKey.get(state.expansionKey).captured || state.hexByKey.get(state.expansionKey).enemyCiv) state.expansionKey = candidates[0].key;
-    state.expansionProgress += dt * (1 + (count - 1) * 0.5);
-    if (state.expansionProgress >= EXPANSION_SECONDS) { state.expansionProgress = 0; captureHex(state.hexByKey.get(state.expansionKey), "outpost"); state.expansionKey = null; }
+  function selectTile(key) {
+    const hex = state.hexByKey.get(key); if (!hex) return false;
+    state.selectedKey = hex.key;
+    const structure = hex.enemyStructure;
+    if (structure?.type === "capital" && structure.breached) {
+      const base = siegeBaseFor(hex); if (base) setOrder("siege", hex, base);
+    } else {
+      const base = claimBaseFor(hex); if (base) setOrder("claim", hex, base);
+    }
+    updateHud(); return true;
+  }
+
+  function updateOrders(dt) {
+    const order = state.activeOrder; if (!order) return;
+    const hex = state.hexByKey.get(order.key); const base = state.hexByKey.get(order.baseKey);
+    if (!hex || !base?.captured || !base.baseLevel) { state.activeOrder = null; return; }
+    if (order.type === "claim") {
+      if (hex.captured || hex.enemyCiv || !claimBaseFor(hex)) { state.activeOrder = null; return; }
+      const duration = claimStageDuration();
+      order.progress += dt; hex.claimProgress = order.progress;
+      if (order.progress < duration) return;
+      order.stage += 1; order.progress = 0; hex.claimStage = order.stage; hex.claimProgress = 0;
+      if (order.stage >= 3) { captureHex(hex, "거점 명령"); state.activeOrder = null; }
+      return;
+    }
+    if (order.type === "siege") {
+      if (hex.enemyStructure?.type !== "capital" || !hex.enemyStructure.breached || !siegeBaseFor(hex)) { state.activeOrder = null; return; }
+      order.progress += dt;
+      if (order.progress < SIEGE_STAGE_SECONDS) return;
+      order.stage += 1; order.progress = 0;
+      if (order.stage >= 3) { const civ = state.enemyCivs.find((item) => item.id === hex.enemyCiv); state.activeOrder = null; defeatEnemyCiv(civ); }
+    }
+  }
+
+  function baseGrowthThreshold(level) { return (level === 1 ? 45 : 75) * (state.techs.urban ? 0.75 : 1); }
+
+  function updateBaseGrowth(dt) {
+    for (const base of playerBases()) {
+      base.defenseClock = Math.max(0, (base.defenseClock || 0) - dt);
+      if (base.defenseClock > 0) continue;
+      if (base.baseLevel >= 3) continue;
+      base.baseGrowth += dt;
+      const threshold = baseGrowthThreshold(base.baseLevel);
+      if (base.baseGrowth >= threshold) { base.baseGrowth -= threshold; base.baseLevel += 1; base.baseMaxHp += 50; base.baseHp = Math.min(base.baseMaxHp, base.baseHp + 75); }
+    }
+  }
+
+  function foundBase() {
+    const hex = state.hexByKey.get(state.selectedKey);
+    if (!hex?.captured || hex.building || state.production < 50) return false;
+    state.production -= 50; hex.building = "outpost"; hex.baseLevel = 1; hex.baseGrowth = 0; hex.baseMaxHp = 120; hex.baseHp = 120; hex.defenseClock = 0; hex.turretClock = 0; revealAround(state, hex.q, hex.r, 2); updateHud(); return true;
+  }
+
+  function research(id) {
+    const cost = TECHS[id]; if (!cost || state.techs[id] || state.science < cost) return false;
+    state.science -= cost; state.techs[id] = true; updateHud(); return true;
+  }
+
+  function startShip() {
+    const base = state.hexByKey.get(state.selectedKey);
+    if (!state.techs.aerospace || state.ship || !base?.captured || !base.baseLevel || base.baseLevel < 3 || state.production < 90) return false;
+    state.production -= 90; state.ship = { baseKey: base.key, phase: "build", stage: 0, progress: 0 }; updateHud(); return true;
+  }
+
+  function updateShip(dt) {
+    const ship = state.ship; if (!ship) return;
+    ship.progress += dt;
+    if (ship.phase === "build" && ship.progress >= 20) {
+      ship.progress -= 20; ship.stage += 1;
+      if (ship.stage >= 3) { ship.phase = "launch"; ship.progress = 0; }
+    } else if (ship.phase === "launch" && ship.progress >= 45) finish(true, "science");
   }
 
   function currentBuildTile() { return hexAt(state.player.x, state.player.y); }
@@ -519,6 +779,7 @@
   function build(type) {
     if (!canBuild(type)) return false;
     const hex = currentBuildTile(); state.production -= BUILDINGS[type]; hex.building = type;
+    if (type === "outpost") { hex.baseLevel = 1; hex.baseGrowth = 0; hex.baseMaxHp = 120; hex.baseHp = 120; hex.defenseClock = 0; hex.turretClock = 0; }
     closeBuildMenu(); updateHud(); return true;
   }
 
@@ -552,11 +813,16 @@
   }
 
   function updateParticles(dt) {
-    for (let i = state.particles.length - 1; i >= 0; i -= 1) { const particle = state.particles[i]; particle.life -= dt; particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vx *= 0.96; particle.vy *= 0.96; if (particle.life <= 0) state.particles.splice(i, 1); }
+    for (let i = state.particles.length - 1; i >= 0; i -= 1) { const particle = state.particles[i]; particle.life -= dt; if (particle.kind !== "line") { particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vx *= 0.96; particle.vy *= 0.96; } if (particle.life <= 0) state.particles.splice(i, 1); }
     for (let i = state.messages.length - 1; i >= 0; i -= 1) { state.messages[i].life -= dt; state.messages[i].y -= 22 * dt; if (state.messages[i].life <= 0) state.messages.splice(i, 1); }
   }
 
-  function finish(won) { state.ended = true; state.running = false; state.won = won; state.player.hp = Math.max(0, state.player.hp); setOverlay(won ? ui.victory : ui.gameOver, true); }
+  function finish(won, type = null) {
+    state.ended = true; state.running = false; state.won = won; state.victoryType = won ? type : null; state.player.hp = Math.max(0, state.player.hp);
+    const copy = { military: ["군사 승리", "세 적 문명의 수도를 공성 점령했습니다."], science: ["과학 승리", "우주선을 완성하고 적의 포위망에서 탈출했습니다."] }[type];
+    if (copy && ui.victoryTitle) ui.victoryTitle.textContent = copy[0]; if (copy && ui.victoryCopy) ui.victoryCopy.textContent = copy[1];
+    setOverlay(won ? ui.victory : ui.gameOver, true);
+  }
 
   function togglePause(force) {
     if (!state.running || state.ended || state.choosing || state.menu) return;
@@ -584,10 +850,14 @@
     ctx.save(); ctx.translate(view.cx - state.camera.x, view.cy - state.camera.y); drawLinks();
     for (const hex of state.hexes) { const center = axialToWorld(hex.q, hex.r); if (isOnScreen(center.x, center.y)) drawTile(hex); }
     drawCapture(); drawExpansion();
-    for (const drop of state.drops) if (isOnScreen(drop.x, drop.y)) drawDrop(drop);
     for (const enemy of state.enemies) if (isOnScreen(enemy.x, enemy.y)) drawEnemy(enemy);
     for (const shot of state.projectiles) if (isOnScreen(shot.x, shot.y)) drawProjectile(shot);
-    for (const particle of state.particles) if (isOnScreen(particle.x, particle.y)) { ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife); ctx.fillStyle = particle.color; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, TAU); ctx.fill(); }
+    for (const shot of state.enemyShots) if (isOnScreen(shot.x, shot.y)) drawEnemyShot(shot);
+    for (const particle of state.particles) if (isOnScreen(particle.x, particle.y)) {
+      ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife);
+      if (particle.kind === "line") { ctx.strokeStyle = particle.color; ctx.lineWidth = particle.size; ctx.beginPath(); ctx.moveTo(particle.x, particle.y); ctx.lineTo(particle.x2, particle.y2); ctx.stroke(); }
+      else { ctx.fillStyle = particle.color; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, TAU); ctx.fill(); }
+    }
     ctx.globalAlpha = 1; drawPlayer();
     for (const message of state.messages) { ctx.globalAlpha = Math.min(1, message.life); ctx.fillStyle = "#ffffff"; ctx.font = "700 14px sans-serif"; ctx.textAlign = "center"; ctx.fillText(message.text, message.x, message.y); }
     ctx.restore(); ctx.globalAlpha = 1;
@@ -614,11 +884,13 @@
     const terrainColor = { plain: "#173746", crater: "#25313c", ridge: "#293f4c", dunes: "#394235" }[hex.terrain];
     const civ = state.enemyCivs.find((item) => item.id === hex.enemyCiv);
     ctx.globalAlpha = hex.visible ? 1 : 0.38;
+    const claimable = Boolean(claimBaseFor(hex)); const selected = state.selectedKey === hex.key;
     drawHex(hex, hex.captured ? "#173f4a" : hex.enemyCiv ? `${civ?.color || "#ef476f"}38` : terrainColor,
-      hex.captured ? "#63e6ff" : hex.enemyCiv ? civ?.color : isAccessible(hex) ? "#7796a6" : "#294554", hex.captured || hex.enemyCiv || isAccessible(hex) ? 1.7 : 1);
+      selected ? "#f4d35e" : hex.captured ? "#63e6ff" : hex.enemyCiv ? civ?.color : claimable ? "#42d9c8" : "#294554",
+      selected ? 4 : hex.captured || hex.enemyCiv || claimable ? 1.7 : 1);
     const center = axialToWorld(hex.q, hex.r);
     if (hex.resource) { ctx.fillStyle = { ore: "#f5b95f", core: "#63e6ff", ruins: "#c8a8ff", garden: "#72ef9f" }[hex.resource]; ctx.font = "800 13px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText({ ore: "◆", core: "◈", ruins: "✦", garden: "●" }[hex.resource], center.x + 20, center.y - 17); }
-    if (hex.building) { ctx.fillStyle = buildingColor(hex.building); ctx.beginPath(); ctx.arc(center.x, center.y, hex.building === "command" ? 15 : 10, 0, TAU); ctx.fill(); ctx.fillStyle = "#07131c"; ctx.font = "800 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText({ command: "HQ", outpost: "O", factory: "F", lab: "L", silo: "S" }[hex.building], center.x, center.y + 1); }
+    if (hex.building) { ctx.fillStyle = buildingColor(hex.building); ctx.beginPath(); ctx.arc(center.x, center.y, hex.building === "command" ? 15 : 10, 0, TAU); ctx.fill(); ctx.fillStyle = "#07131c"; ctx.font = "800 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText({ command: "HQ", outpost: "O", factory: "F", lab: "L", silo: "S" }[hex.building], center.x, center.y + 1); if (hex.baseLevel) { ctx.fillStyle = "#eaffff"; ctx.font = "800 10px sans-serif"; ctx.fillText(`Lv.${hex.baseLevel}`, center.x, center.y + 25); ctx.fillStyle = "#101820"; ctx.fillRect(center.x - 20, center.y + 31, 40, 4); ctx.fillStyle = hex.defenseClock > 0 ? "#ff6b6b" : "#72ef9f"; ctx.fillRect(center.x - 20, center.y + 31, 40 * Math.max(0, hex.baseHp / hex.baseMaxHp), 4); } }
     if (hex.enemyStructure) drawEnemyStructure(hex, civ, center);
     ctx.globalAlpha = 1;
   }
@@ -629,28 +901,28 @@
     if (structure.type === "capital") {
       ctx.rotate(Math.PI / 4); ctx.fillRect(-14, -14, 28, 28); ctx.strokeRect(-14, -14, 28, 28);
       ctx.rotate(-Math.PI / 4); ctx.fillStyle = "#fff0f5"; ctx.fillRect(-4, -18, 8, 36);
+      const foundryAlive = enemyStructures(civ?.id).some((item) => item.enemyStructure.type === "foundry");
+      if (foundryAlive) { ctx.strokeStyle = "#8ff7ff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 25 + Math.sin(state.time * 4) * 2, 0, TAU); ctx.stroke(); }
+      if (structure.breached) { ctx.fillStyle = "#fff"; ctx.font = "900 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText("BREACH", 0, 34); }
     } else {
       ctx.beginPath(); for (let i = 0; i < 3; i += 1) { const angle = -Math.PI / 2 + i * TAU / 3; const x = Math.cos(angle) * 16; const y = Math.sin(angle) * 16; if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
       ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#fff0f5"; ctx.beginPath(); ctx.arc(0, 2, 5, 0, TAU); ctx.fill();
     }
-    ctx.fillStyle = "#1b1118"; ctx.fillRect(-19, -27, 38, 4); ctx.fillStyle = "#72ef9f"; ctx.fillRect(-19, -27, 38 * Math.max(0, structure.hp / structure.maxHp), 4); ctx.restore();
+    ctx.fillStyle = "#1b1118"; ctx.fillRect(-19, -27, 38, 4); ctx.fillStyle = structure.breached ? "#f4d35e" : "#72ef9f"; ctx.fillRect(-19, -27, 38 * Math.max(0, structure.hp / structure.maxHp), 4); ctx.fillStyle = "#fff"; ctx.font = "800 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText(`Lv.${structure.level || 1}`, 0, -32); ctx.restore();
   }
 
   function drawCapture() {
-    if (!state.captureKey || state.captureProgress <= 0) return; const hex = state.hexByKey.get(state.captureKey); if (!hex) return;
-    const center = axialToWorld(hex.q, hex.r); const progress = Math.min(1, state.captureProgress / CAPTURE_SECONDS);
-    ctx.strokeStyle = "#f4d35e"; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(center.x, center.y, view.hexSize * 0.63, -Math.PI / 2, -Math.PI / 2 + TAU * progress); ctx.stroke();
+    const order = state.activeOrder; if (!order) return; const hex = state.hexByKey.get(order.key); if (!hex) return;
+    const duration = order.type === "siege" ? SIEGE_STAGE_SECONDS : claimStageDuration();
+    const center = axialToWorld(hex.q, hex.r); const partial = Math.min(1, order.progress / duration);
+    for (let stage = 0; stage < 3; stage += 1) {
+      ctx.strokeStyle = stage < order.stage ? "#72ef9f" : stage === order.stage ? "#f4d35e" : "rgba(255,255,255,.18)"; ctx.lineWidth = 6;
+      const start = -Math.PI / 2 + stage * TAU / 3 + 0.04; const complete = stage < order.stage ? 1 : stage === order.stage ? partial : 0;
+      ctx.beginPath(); ctx.arc(center.x, center.y, view.hexSize * 0.64, start, start + (TAU / 3 - 0.08) * complete); ctx.stroke();
+    }
   }
 
   function drawExpansion() {
-    const hex = state.expansionKey && state.hexByKey.get(state.expansionKey);
-    if (hex) {
-      const center = axialToWorld(hex.q, hex.r); const progress = Math.min(1, state.expansionProgress / EXPANSION_SECONDS);
-      ctx.strokeStyle = "rgba(66,217,200,.9)"; ctx.lineWidth = 4; ctx.beginPath();
-      ctx.arc(center.x, center.y, view.hexSize * (0.4 + progress * 0.25), -Math.PI / 2, -Math.PI / 2 + TAU * progress); ctx.stroke();
-      ctx.strokeStyle = `rgba(66,217,200,${0.12 + progress * 0.28})`; ctx.lineWidth = 2; ctx.beginPath();
-      ctx.arc(center.x, center.y, view.hexSize * (0.72 + Math.sin(state.time * 4) * 0.05), 0, TAU); ctx.stroke();
-    }
     for (const civ of state.enemyCivs) {
       const target = civ.expansionTarget && state.hexByKey.get(civ.expansionTarget); if (!target?.discovered) continue;
       const point = axialToWorld(target.q, target.r); ctx.strokeStyle = civ.color; ctx.globalAlpha = target.visible ? 0.8 : 0.3;
@@ -665,24 +937,38 @@
     ctx.globalAlpha = blink ? 0.35 : 1; ctx.fillStyle = "#f7f3e8"; ctx.strokeStyle = "#0d1b25"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, TAU); ctx.fill(); ctx.stroke(); const target = aimPoint(); const angle = Math.atan2(target.y - p.y, target.x - p.x); ctx.strokeStyle = "#ffcf5a"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + Math.cos(angle) * 20, p.y + Math.sin(angle) * 20); ctx.stroke(); ctx.globalAlpha = 1;
   }
 
-  function drawEnemy(enemy) { const tile = hexAt(enemy.x, enemy.y); if (!tile?.discovered) return; const civ = state.enemyCivs.find((item) => item.id === enemy.originCiv); ctx.globalAlpha = tile.visible ? 1 : 0.38; ctx.fillStyle = enemy.brute ? "#ff8a8a" : civ?.color || "#dc3e64"; ctx.strokeStyle = "#360d1a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius, 0, TAU); ctx.fill(); ctx.stroke(); if (enemy.hp < enemy.maxHp) { ctx.fillStyle = "#1b1118"; ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 8, enemy.radius * 2, 3); ctx.fillStyle = "#72ef9f"; ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 8, enemy.radius * 2 * enemy.hp / enemy.maxHp, 3); } ctx.globalAlpha = 1; }
-  function drawProjectile(shot) { ctx.fillStyle = shot.color; ctx.shadowColor = shot.color; ctx.shadowBlur = shot.kind === "orbital" || shot.kind === "missile" ? 14 : 7; ctx.beginPath(); ctx.arc(shot.x, shot.y, shot.radius, 0, TAU); ctx.fill(); ctx.shadowBlur = 0; }
-  function drawDrop(drop) { ctx.save(); ctx.translate(drop.x, drop.y); ctx.rotate(drop.t * 2); ctx.fillStyle = "#9b7cff"; ctx.shadowColor = "#9b7cff"; ctx.shadowBlur = 10; ctx.fillRect(-drop.radius, -drop.radius, drop.radius * 2, drop.radius * 2); ctx.restore(); }
+  function drawEnemy(enemy) { const tile = hexAt(enemy.x, enemy.y); if (!tile?.discovered) return; const civ = state.enemyCivs.find((item) => item.id === enemy.originCiv); ctx.globalAlpha = tile.visible ? 1 : 0.38; ctx.fillStyle = enemy.wild ? "#f5b95f" : enemy.brute ? "#ff8a8a" : civ?.color || "#dc3e64"; ctx.strokeStyle = enemy.wild ? "#5b3b0b" : "#360d1a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius, 0, TAU); ctx.fill(); ctx.stroke(); if (enemy.hp < enemy.maxHp) { ctx.fillStyle = "#1b1118"; ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 8, enemy.radius * 2, 3); ctx.fillStyle = "#72ef9f"; ctx.fillRect(enemy.x - enemy.radius, enemy.y - enemy.radius - 8, enemy.radius * 2 * enemy.hp / enemy.maxHp, 3); } ctx.globalAlpha = 1; }
+  function drawProjectile(shot) { ctx.fillStyle = shot.color; ctx.shadowColor = shot.color; ctx.shadowBlur = shot.kind === "orbital" || shot.kind === "missile" || shot.kind === "mine" ? 14 : 7; ctx.beginPath(); ctx.arc(shot.x, shot.y, shot.kind === "mine" ? shot.radius + Math.sin(state.time * 7) * 2 : shot.radius, 0, TAU); ctx.fill(); ctx.shadowBlur = 0; }
+  function drawEnemyShot(shot) { ctx.fillStyle = shot.color; ctx.shadowColor = shot.color; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(shot.x, shot.y, shot.radius, 0, TAU); ctx.fill(); ctx.shadowBlur = 0; }
 
   function updateHud() {
-    if (!state) return; const p = state.player; const captured = capturedCount(); state.productionRate = productionRate();
+    if (!state) return; const p = state.player; const captured = capturedCount(); state.productionRate = productionRate(); state.scienceRate = scienceRate();
     if (ui.healthFill) ui.healthFill.style.width = `${Math.max(0, p.hp / p.maxHp * 100)}%`; if (ui.healthText) ui.healthText.textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
-    if (ui.xpFill) ui.xpFill.style.width = `${p.xp / p.nextXp * 100}%`; if (ui.level) ui.level.textContent = p.level; if (ui.territory) ui.territory.textContent = `${captured} / ${CAPTURE_GOAL}`; if (ui.kills) ui.kills.textContent = state.kills;
-    if (ui.timer) { const left = Math.max(0, Math.ceil(VICTORY_TIME - state.time)); ui.timer.textContent = `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}`; }
+    if (ui.xpFill) ui.xpFill.style.width = `${p.xp / p.nextXp * 100}%`; if (ui.level) ui.level.textContent = p.level; if (ui.territory) ui.territory.textContent = captured; if (ui.kills) ui.kills.textContent = state.kills;
+    if (ui.timer) { const elapsed = Math.max(0, Math.floor(state.time)); ui.timer.textContent = `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`; }
     if (ui.weapon) ui.weapon.textContent = `${Math.round(p.damage)} DMG · ${(1 / p.fireRate).toFixed(1)}/s`; if (ui.auto) ui.auto.textContent = `${Math.round(p.autoDamage)} DMG · ${(1 / p.autoRate).toFixed(1)}/s`;
-    if (ui.objective) ui.objective.textContent = `적 수도 3곳 파괴 · 8분 생존 또는 구역 ${CAPTURE_GOAL}개 확보`; if (ui.production) ui.production.textContent = Math.floor(state.production); if (ui.productionRate) ui.productionRate.textContent = `+${state.productionRate.toFixed(1)}/s`;
+    if (ui.objective) ui.objective.textContent = "군사: 수도 3곳 공성 점령 · 과학: 우주선 제작 후 탈출"; if (ui.production) ui.production.textContent = Math.floor(state.production); if (ui.productionRate) ui.productionRate.textContent = `+${state.productionRate.toFixed(1)}/s`;
+    if (ui.science) ui.science.textContent = Math.floor(state.science); if (ui.scienceRate) ui.scienceRate.textContent = `+${state.scienceRate.toFixed(1)}/s`;
     const livingCapitals = state.enemyCivs.filter((civ) => !civ.defeated).length;
     if (ui.enemyCapitals) ui.enemyCapitals.textContent = `${livingCapitals} / 3`; if (ui.enemyTerritory) ui.enemyTerritory.textContent = state.hexes.filter((hex) => hex.enemyCiv).length;
     if (ui.enemyPressure) ui.enemyPressure.textContent = state.enemies.length;
-    if (ui.expansion) ui.expansion.textContent = buildingCount("outpost") ? `${Math.floor(state.expansionProgress / EXPANSION_SECONDS * 100)}%` : "전초기지 필요";
+    if (ui.militaryProgress) ui.militaryProgress.textContent = `${3 - livingCapitals} / 3`;
+    if (ui.scienceProgress) ui.scienceProgress.textContent = state.ship ? state.ship.phase === "launch" ? `발사 방어 ${Math.floor(state.ship.progress)} / 45초` : `우주선 ${state.ship.stage} / 3` : state.techs.aerospace ? "우주기지 선택" : "우주항법 연구 필요";
+    if (ui.expansion) ui.expansion.textContent = state.activeOrder?.type === "claim" ? `개척 ${state.activeOrder.stage} / 3` : "타일을 선택하세요";
     const tile = currentBuildTile(); if (ui.terrain) ui.terrain.textContent = tile ? `${terrainName(tile.terrain)}${tile.resource ? ` · ${resourceName(tile.resource)}` : ""}` : "지도 밖";
-    if (ui.arsenal) ui.arsenal.textContent = ["Pulse", buildingCount("factory") && "Scatter", buildingCount("lab") && "Rail", buildingCount("silo") && "Missile"].filter(Boolean).join(" / ");
-    const capturePercent = state.captureProgress / CAPTURE_SECONDS * 100; if (ui.captureFill) ui.captureFill.style.width = `${Math.min(100, capturePercent)}%`; if (ui.captureLabel) ui.captureLabel.textContent = state.captureKey ? `영토 동기화 ${Math.floor(capturePercent)}%` : "점령 영토와 인접한 미확보 헥스에 진입하세요";
+    if (ui.arsenal) ui.arsenal.textContent = ["Pulse", "Orbital", p.chainLevel && `Chain Lv.${p.chainLevel}`, p.mineLevel && `Mine Lv.${p.mineLevel}`, buildingCount("factory") && "Scatter", buildingCount("lab") && "Rail", buildingCount("silo") && "Missile"].filter(Boolean).join(" / ");
+    const orderDuration = state.activeOrder?.type === "siege" ? SIEGE_STAGE_SECONDS : claimStageDuration();
+    const capturePercent = state.activeOrder ? (state.activeOrder.stage + state.activeOrder.progress / orderDuration) / 3 * 100 : 0;
+    if (ui.captureFill) ui.captureFill.style.width = `${Math.min(100, capturePercent)}%`;
+    if (ui.captureLabel) ui.captureLabel.textContent = state.activeOrder ? `${state.activeOrder.type === "siege" ? "수도 공성" : "개척"} ${state.activeOrder.stage + 1}/3 · ${Math.floor(capturePercent)}%` : "강조된 헥스를 클릭해 명령하세요";
+    const selected = state.hexByKey.get(state.selectedKey);
+    if (ui.selectedTile) ui.selectedTile.textContent = selected ? `${selected.q}, ${selected.r} · ${selected.captured ? "아군 영토" : selected.enemyCiv ? "적 영토" : "중립"}` : "선택 없음";
+    if (ui.selectedAction) { const turret = selected?.baseLevel ? baseTurretStats(selected.baseLevel) : null; ui.selectedAction.textContent = !selected ? "지도에서 헥스를 선택하세요" : selected.enemyStructure?.breached ? siegeBaseFor(selected) ? "수도 공성 가능" : "거점 영향권 밖" : claimBaseFor(selected) ? "3단계 개척 진행" : selected.captured && !selected.building ? "새 거점 설립 가능" : selected.baseLevel ? `거점 Lv.${selected.baseLevel} · HP ${Math.ceil(selected.baseHp)}/${selected.baseMaxHp} · 포탑 ${turret.damage}DMG/${(turret.range / view.hexSize).toFixed(1)}H/${turret.rate.toFixed(1)}s${selected.defenseClock > 0 ? " · 방어 중" : ""}` : "명령 없음"; }
+    if (ui.defenseStatus) { const assaultUnits = state.assault ? state.enemies.filter((enemy) => enemy.assaultId === state.assault.id).length : 0; ui.defenseStatus.textContent = state.assault ? `공세 진행 · ${state.assault.targetKey} · 잔여 ${assaultUnits}` : `다음 공세 ${Math.max(0, Math.ceil(state.assaultClock))}초`; }
+    if (ui.foundBase) ui.foundBase.disabled = !selected?.captured || Boolean(selected.building) || state.production < 50;
+    if (ui.shipButton) ui.shipButton.disabled = !state.techs.aerospace || Boolean(state.ship) || !selected?.captured || selected.baseLevel < 3 || state.production < 90;
+    if (ui.shipStatus) ui.shipStatus.textContent = !state.ship ? state.techs.aerospace ? "레벨 3 거점과 산업력 90 필요" : "우주항법 기술 필요" : state.ship.phase === "launch" ? `발사 방어 ${Math.ceil(45 - state.ship.progress)}초` : `우주선 제작 ${state.ship.stage + 1}/3 · ${Math.floor(state.ship.progress / 20 * 100)}%`;
+    for (const [id, cost] of Object.entries(TECHS)) { const button = ui[`tech${id[0].toUpperCase()}${id.slice(1)}`]; if (button) { button.disabled = state.techs[id] || state.science < cost; button.dataset.researched = String(state.techs[id]); } }
     if (state.menu) updateBuildUi();
   }
 
@@ -691,24 +977,44 @@
     const lastProjectile = state.projectiles[state.projectiles.length - 1];
     const structures = enemyStructures(); const origins = {};
     for (const enemy of state.enemies) origins[enemy.originCiv] = (origins[enemy.originCiv] || 0) + 1;
-    return Object.freeze({ running: state.running, paused: state.paused, choosing: state.choosing, menu: state.menu, ended: state.ended, won: state.won,
+    const wildUnits = state.enemies.filter((enemy) => enemy.originCiv === "wild");
+    const victoryProgress = Object.freeze({ military: 3 - state.enemyCivs.filter((civ) => !civ.defeated).length,
+      science: state.ship ? `${state.ship.phase}:${state.ship.stage}` : state.techs.aerospace ? "ship-ready" : "research" });
+    return Object.freeze({ running: state.running, paused: state.paused, choosing: state.choosing, menu: state.menu, ended: state.ended, won: state.won, victoryType: state.victoryType,
       time: Number(state.time.toFixed(2)), hp: Number(state.player.hp.toFixed(1)), maxHp: state.player.maxHp, x: Number(state.player.x.toFixed(1)), y: Number(state.player.y.toFixed(1)),
       camera: Object.freeze({ x: Number(state.camera.x.toFixed(1)), y: Number(state.camera.y.toFixed(1)) }), mapTiles: state.hexes.length,
       discovered: state.hexes.filter((hex) => hex.discovered).length, level: state.player.level, xp: state.player.xp, kills: state.kills, territory: capturedCount(), enemies: state.enemies.length,
-      production: Number(state.production.toFixed(1)), productionRate: Number(state.productionRate.toFixed(2)), buildings: Object.freeze(counts),
-      enemyCivs: Object.freeze(state.enemyCivs.map((civ) => Object.freeze({ id: civ.id, defeated: civ.defeated, capital: `${civ.q},${civ.r}`, expansionTarget: civ.expansionTarget }))),
+      production: Number(state.production.toFixed(1)), productionRate: Number(state.productionRate.toFixed(2)),
+      science: Number(state.science.toFixed(1)), scienceRate: Number(state.scienceRate.toFixed(2)), buildings: Object.freeze(counts),
+      enemyCivs: Object.freeze(state.enemyCivs.map((civ) => { const capital = state.hexByKey.get(`${civ.q},${civ.r}`)?.enemyStructure; const foundryAlive = enemyStructures(civ.id).some((hex) => hex.enemyStructure.type === "foundry"); return Object.freeze({ id: civ.id, defeated: civ.defeated, capital: `${civ.q},${civ.r}`, expansionTarget: civ.expansionTarget, shielded: Boolean(capital && foundryAlive), breached: Boolean(capital?.breached) }); })),
       enemyCapitals: state.enemyCivs.filter((civ) => !civ.defeated).length, enemyTerritory: state.hexes.filter((hex) => hex.enemyCiv).length,
       neutralizedEnemyTiles: Object.freeze(state.hexes.filter((hex) => hex.enemyNeutralized && !hex.captured).map((hex) => hex.key)),
       spawnStructures: structures.filter((hex) => hex.enemyStructure.type === "foundry").length,
-      enemyOrigins: Object.freeze(origins), structureHp: Object.freeze(structures.map((hex) => Object.freeze({ key: hex.key, civ: hex.enemyCiv,
-        type: hex.enemyStructure.type, hp: Number(hex.enemyStructure.hp.toFixed(1)), maxHp: hex.enemyStructure.maxHp }))),
+      enemyOrigins: Object.freeze(origins), wildEnemies: wildUnits.length,
+      wildOrigins: Object.freeze(wildUnits.map((enemy) => enemy.originKey)), structureHp: Object.freeze(structures.map((hex) => Object.freeze({ key: hex.key, civ: hex.enemyCiv,
+        type: hex.enemyStructure.type, hp: Number(hex.enemyStructure.hp.toFixed(1)), maxHp: hex.enemyStructure.maxHp, level: hex.enemyStructure.level || 1,
+        shielded: hex.enemyStructure.type === "capital" && enemyStructures(hex.enemyCiv).some((item) => item.enemyStructure.type === "foundry"), breached: Boolean(hex.enemyStructure.breached) }))),
       enemyUnits: Object.freeze(state.enemies.map((enemy) => Object.freeze({ id: enemy.id, civ: enemy.originCiv, origin: enemy.originStructure, originKey: enemy.originKey,
-        x: Number(enemy.x.toFixed(1)), y: Number(enemy.y.toFixed(1)) }))),
-      weapons: Object.freeze(["pulse", buildingCount("factory") && "scatter", buildingCount("lab") && "rail", buildingCount("silo") && "missile", "orbital"].filter(Boolean)),
-      projectiles: state.projectiles.length, projectileKinds: Object.freeze([...new Set(state.projectiles.map((shot) => shot.kind))]),
+        assaultId: enemy.assaultId || null, targetBaseKey: enemy.targetBaseKey || null, x: Number(enemy.x.toFixed(1)), y: Number(enemy.y.toFixed(1)) }))),
+      weapons: Object.freeze(["pulse", "orbital", state.player.chainLevel && "chain", state.player.mineLevel && "mine", buildingCount("factory") && "scatter", buildingCount("lab") && "rail", buildingCount("silo") && "missile"].filter(Boolean)),
+      augmentChoices: Object.freeze([...state.augmentChoices]), augmentLevels: Object.freeze({ ...state.augmentLevels }), victoryProgress,
+      projectiles: state.projectiles.length, baseShots: state.projectiles.filter((shot) => shot.kind === "base").length, enemyShots: state.enemyShots.length,
+      projectileKinds: Object.freeze([...new Set(state.projectiles.map((shot) => shot.kind))]),
+      projectileRanges: Object.freeze(state.projectiles.filter((shot) => shot.maxRange !== null).map((shot) => Object.freeze({ kind: shot.kind,
+        sourceBaseKey: shot.sourceBaseKey || null, targetId: shot.targetId || null, priorityAssault: Boolean(shot.priorityAssault),
+        traveled: Number(shot.traveled.toFixed(1)), maxRange: Number(shot.maxRange.toFixed(1)), originX: Number(shot.originX.toFixed(1)), originY: Number(shot.originY.toFixed(1)) }))),
+      enemyShotRanges: Object.freeze(state.enemyShots.map((shot) => Object.freeze({ traveled: Number(shot.traveled.toFixed(1)), maxRange: Number(shot.maxRange.toFixed(1)), originX: Number(shot.originX.toFixed(1)), originY: Number(shot.originY.toFixed(1)) }))),
       projectileVelocity: lastProjectile ? Object.freeze({ vx: Number(lastProjectile.vx.toFixed(1)), vy: Number(lastProjectile.vy.toFixed(1)) }) : null,
-      captureProgress: Number(state.captureProgress.toFixed(2)), expansionKey: state.expansionKey,
-      expansionProgress: Number((state.expansionProgress / EXPANSION_SECONDS).toFixed(3)) });
+      selectedKey: state.selectedKey,
+      activeOrder: state.activeOrder ? Object.freeze({ type: state.activeOrder.type, key: state.activeOrder.key, baseKey: state.activeOrder.baseKey,
+        stage: state.activeOrder.stage, progress: Number(state.activeOrder.progress.toFixed(2)) }) : null,
+      bases: Object.freeze(playerBases().map((base) => { const turret = baseTurretStats(base.baseLevel); return Object.freeze({ key: base.key, level: base.baseLevel, growth: Number(base.baseGrowth.toFixed(2)), radius: baseClaimRadius(base),
+        hp: Number(base.baseHp.toFixed(1)), maxHp: base.baseMaxHp, defending: base.defenseClock > 0,
+        turret: Object.freeze({ range: Number(turret.range.toFixed(1)), damage: turret.damage, rate: Number(turret.rate.toFixed(2)) }) }); })),
+      assault: state.assault ? Object.freeze({ ...state.assault, remaining: state.enemies.filter((enemy) => enemy.assaultId === state.assault.id).length }) : null,
+      assaultClock: Number(state.assaultClock.toFixed(1)),
+      claims: Object.freeze(state.hexes.filter((hex) => hex.claimStage > 0).map((hex) => Object.freeze({ key: hex.key, stage: hex.claimStage, progress: Number(hex.claimProgress.toFixed(2)) }))),
+      techs: Object.freeze({ ...state.techs }), ship: state.ship ? Object.freeze({ ...state.ship, progress: Number(state.ship.progress.toFixed(2)) }) : null });
   }
 
   function step(seconds) { let remaining = Math.max(0, Number(seconds) || 0); while (remaining > 0) { const dt = Math.min(0.05, remaining); update(dt); remaining -= dt; } return snapshot(); }
@@ -721,42 +1027,50 @@
     return spawnEnemyAt(hex, civ);
   }
   function debugExpandEnemy(civId) { return expandEnemyCiv(state.enemyCivs.find((item) => item.id === civId)); }
+  function debugSpawnWild(key) { return spawnWildEnemy(key ? state.hexByKey.get(key) : null); }
+  function debugGrantXp(amount = 999) { addXp(Math.max(0, Number(amount) || 0)); return snapshot(); }
+  function debugApplyAugment(id) { const applied = applyAugment(id); if (applied) { state.choosing = false; state.augmentChoices = []; setOverlay(ui.augment, false); } updateHud(); return applied; }
+  function debugSetPlayerTile(key) { const hex = state.hexByKey.get(key); if (!hex) return false; const point = axialToWorld(hex.q, hex.r); state.player.x = point.x; state.player.y = point.y; return true; }
+  function debugResolveAssault(success = true) { if (!state.assault) return false; if (success) { const id = state.assault.id; state.enemies = state.enemies.filter((enemy) => enemy.assaultId !== id); completeAssault(); } else damageBase(state.hexByKey.get(state.assault.targetKey), 99999); updateHud(); return true; }
   function frame(now) { const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000)); lastFrame = now; update(dt); render(); animationFrame = requestAnimationFrame(frame); }
 
-  function clearTouchInput() { touchMove.pointerId = null; touchMove.x = 0; touchMove.y = 0; touchAim.pointerId = null; touchAim.active = false; if (ui.touchStickKnob) ui.touchStickKnob.style.transform = "translate(-50%, -50%)"; }
+  function clearTouchInput() { touchMove.pointerId = null; touchMove.x = 0; touchMove.y = 0; if (ui.touchStickKnob) ui.touchStickKnob.style.transform = "translate(-50%, -50%)"; }
   function updateTouchMove(event) { if (!ui.touchStick || event.pointerId !== touchMove.pointerId) return; const rect = ui.touchStick.getBoundingClientRect(); const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.34); let x = event.clientX - (rect.left + rect.width / 2); let y = event.clientY - (rect.top + rect.height / 2); const distance = Math.hypot(x, y); if (distance > radius) { x *= radius / distance; y *= radius / distance; } touchMove.x = x / radius; touchMove.y = y / radius; if (ui.touchStickKnob) ui.touchStickKnob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`; }
-  function updateTouchAim(event) { if (!ui.touchFire || event.pointerId !== touchAim.pointerId) return; const rect = ui.touchFire.getBoundingClientRect(); const x = event.clientX - (rect.left + rect.width / 2); const y = event.clientY - (rect.top + rect.height / 2); const distance = Math.hypot(x, y); const deadzone = Math.min(rect.width, rect.height) * 0.12; if (distance > deadzone) { touchAim.dirX = x / distance; touchAim.dirY = y / distance; } }
 
   function bindTouchControls() {
     ui.touchStick?.addEventListener("pointerdown", (event) => { if (touchMove.pointerId !== null) return; event.preventDefault(); touchMove.pointerId = event.pointerId; ui.touchStick.setPointerCapture?.(event.pointerId); updateTouchMove(event); });
     ui.touchStick?.addEventListener("pointermove", (event) => { if (event.pointerId === touchMove.pointerId) { event.preventDefault(); updateTouchMove(event); } });
     const releaseMove = (event) => { if (event.pointerId !== touchMove.pointerId) return; touchMove.pointerId = null; touchMove.x = 0; touchMove.y = 0; if (ui.touchStickKnob) ui.touchStickKnob.style.transform = "translate(-50%, -50%)"; };
     ui.touchStick?.addEventListener("pointerup", releaseMove); ui.touchStick?.addEventListener("pointercancel", releaseMove); ui.touchStick?.addEventListener("lostpointercapture", releaseMove);
-    ui.touchFire?.addEventListener("pointerdown", (event) => { if (touchAim.pointerId !== null) return; event.preventDefault(); touchAim.pointerId = event.pointerId; touchAim.active = true; ui.touchFire.setPointerCapture?.(event.pointerId); updateTouchAim(event); manualShoot(); });
-    ui.touchFire?.addEventListener("pointermove", (event) => { if (event.pointerId === touchAim.pointerId) { event.preventDefault(); updateTouchAim(event); } });
-    const releaseAim = (event) => { if (event.pointerId !== touchAim.pointerId) return; touchAim.pointerId = null; touchAim.active = false; };
-    ui.touchFire?.addEventListener("pointerup", releaseAim); ui.touchFire?.addEventListener("pointercancel", releaseAim); ui.touchFire?.addEventListener("lostpointercapture", releaseAim);
   }
+
+  function openTechMenu() { if (!state.running || state.paused || state.choosing || state.ended) return; state.menu = true; keys.clear(); clearTouchInput(); setOverlay(ui.techOverlay, true); updateHud(); }
+  function closeTechMenu() { state.menu = false; setOverlay(ui.techOverlay, false); lastFrame = performance.now(); canvas.focus(); }
 
   window.addEventListener("resize", resize); window.addEventListener("blur", () => { keys.clear(); clearTouchInput(); });
   document.addEventListener("visibilitychange", () => { if (document.hidden) { keys.clear(); clearTouchInput(); togglePause(true); } });
   window.addEventListener("keydown", (event) => {
-    if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "KeyB"].includes(event.code)) event.preventDefault();
-    if (event.code === "Escape" && state.menu) { closeBuildMenu(); return; }
+    if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyB"].includes(event.code)) event.preventDefault();
+    if (event.code === "Escape" && state.menu) { setOverlay(ui.techOverlay, false); closeBuildMenu(); return; }
     if (event.code === "Escape" || event.code === "KeyP") { togglePause(); return; }
     if (event.code === "KeyB") { openBuildMenu(); return; }
-    if (event.code === "Space") { manualShoot(); return; } keys.add(event.code);
+    keys.add(event.code);
   });
   window.addEventListener("keyup", (event) => keys.delete(event.code));
   canvas.addEventListener("pointermove", (event) => { pointer.clientX = event.clientX; pointer.clientY = event.clientY; pointer.inside = true; });
   canvas.addEventListener("pointerleave", () => { pointer.inside = false; });
-  canvas.addEventListener("pointerdown", (event) => { if (event.button === 0) { pointer.clientX = event.clientX; pointer.clientY = event.clientY; pointer.inside = true; manualShoot(); canvas.focus(); } });
+  canvas.addEventListener("pointerdown", (event) => { if (event.button === 0) { event.preventDefault(); pointer.clientX = event.clientX; pointer.clientY = event.clientY; pointer.inside = true; const world = screenToWorld(event.clientX, event.clientY); const hex = hexAt(world.x, world.y); if (hex) selectTile(hex.key); canvas.focus(); } });
   ui.start?.addEventListener("click", startGame); ui.restart?.addEventListener("click", startGame); ui.resume?.addEventListener("click", () => togglePause(false)); ui.playAgain?.addEventListener("click", startGame); ui.victoryRestart?.addEventListener("click", startGame); ui.pauseButton?.addEventListener("click", () => togglePause());
   ui.buildButton?.addEventListener("click", openBuildMenu); ui.buildCancel?.addEventListener("click", closeBuildMenu);
+  ui.foundBase?.addEventListener("click", foundBase); ui.shipButton?.addEventListener("click", startShip);
+  ui.techButton?.addEventListener("click", openTechMenu); ui.techClose?.addEventListener("click", closeTechMenu);
+  for (const id of Object.keys(TECHS)) ui[`tech${id[0].toUpperCase()}${id.slice(1)}`]?.addEventListener("click", () => research(id));
   for (const type of Object.keys(BUILDINGS)) ui[`build${type[0].toUpperCase()}${type.slice(1)}`]?.addEventListener("click", () => build(type));
   bindTouchControls();
 
   window.__HEXFRONT_DEBUG__ = Object.freeze({ snapshot, reset: () => reset(true), step, build,
-    damageEnemyStructure: debugDamageStructure, spawnEnemy: debugSpawnEnemy, expandEnemy: debugExpandEnemy });
+    damageEnemyStructure: debugDamageStructure, spawnEnemy: debugSpawnEnemy, expandEnemy: debugExpandEnemy,
+    spawnWild: debugSpawnWild, grantXp: debugGrantXp, applyAugment: debugApplyAugment,
+    selectTile, research, foundBase, startShip, triggerAssault, resolveAssault: debugResolveAssault, setPlayerTile: debugSetPlayerTile });
   resize(); reset(!ui.start); cancelAnimationFrame(animationFrame); animationFrame = requestAnimationFrame(frame);
 })();
