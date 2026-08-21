@@ -837,13 +837,24 @@
   }
 
   function currentBuildTile() { return hexAt(state.player.x, state.player.y); }
+  function buildTargetTile() { return state.selectedKey ? state.hexByKey.get(state.selectedKey) || null : currentBuildTile(); }
+  function buildLockReason(type, hex = buildTargetTile()) {
+    const cost = BUILDINGS[type];
+    if (!cost) return "지원하지 않는 시설";
+    if (!hex) return "건설 대상 없음";
+    if (!hex.captured) return "점령 필요";
+    if (hex.building === "command") return "지휘기지에는 건설 불가";
+    if (hex.building) return `${buildingName(hex.building)} 건설됨`;
+    if (state.production < cost) return `산업력 부족 (${Math.floor(state.production)} / ${cost})`;
+    return null;
+  }
   function canBuild(type) {
-    const hex = currentBuildTile(); return Boolean(BUILDINGS[type] && hex && hex.captured && hex.building !== "command" && !hex.building && state.production >= BUILDINGS[type]);
+    return !buildLockReason(type);
   }
 
   function build(type) {
     if (!canBuild(type)) return false;
-    const hex = currentBuildTile(); state.production -= BUILDINGS[type]; hex.building = type;
+    const hex = buildTargetTile(); state.production -= BUILDINGS[type]; hex.building = type;
     if (type === "outpost") { hex.baseLevel = 1; hex.baseGrowth = 0; hex.baseMaxHp = 120; hex.baseHp = 120; hex.defenseClock = 0; hex.turretClock = 0; }
     closeBuildMenu(); updateHud(); return true;
   }
@@ -858,11 +869,11 @@
   }
 
   function updateBuildUi() {
-    const hex = currentBuildTile();
-    if (ui.buildTileInfo) ui.buildTileInfo.textContent = !hex ? "지도 밖" : !hex.captured ? "점령되지 않은 타일" : hex.building === "command" ? "지휘 기지에는 건설할 수 없습니다" : hex.building ? `${buildingName(hex.building)} 건설됨` : `${terrainName(hex.terrain)}${hex.resource ? ` · ${resourceName(hex.resource)}` : ""}`;
+    const hex = buildTargetTile(); const coordinate = hex ? `[${hex.q}, ${hex.r}] ` : "";
+    if (ui.buildTileInfo) ui.buildTileInfo.textContent = !hex ? "건설 대상 없음" : !hex.captured ? `${coordinate}점령 필요` : hex.building === "command" ? `${coordinate}지휘기지에는 건설 불가` : hex.building ? `${coordinate}${buildingName(hex.building)} 건설됨` : state.production < Math.min(...Object.values(BUILDINGS)) ? `${coordinate}산업력 부족 (${Math.floor(state.production)} / 최소 ${Math.min(...Object.values(BUILDINGS))})` : `${coordinate}${terrainName(hex.terrain)}${hex.resource ? ` · ${resourceName(hex.resource)}` : ""} · 산업력 ${Math.floor(state.production)}`;
     for (const [type, cost] of Object.entries(BUILDINGS)) {
       const button = ui[`build${type[0].toUpperCase()}${type.slice(1)}`]; if (!button) continue;
-      button.disabled = !canBuild(type); button.dataset.cost = String(cost);
+      const reason = buildLockReason(type, hex); button.disabled = Boolean(reason); button.dataset.cost = String(cost); button.dataset.lockReason = reason || ""; button.title = reason || `${coordinate}${buildingName(type)} 건설 가능`;
       const costNode = button.querySelector("[data-cost]"); if (costNode) costNode.textContent = cost;
     }
   }
@@ -1031,7 +1042,7 @@
     if (ui.captureLabel) ui.captureLabel.textContent = state.activeOrder ? `${state.activeOrder.type === "siege" ? "수도 공성" : "개척"} ${state.activeOrder.stage + 1}/3 · ${Math.floor(capturePercent)}%` : "강조된 헥스를 클릭해 명령하세요";
     const selected = state.hexByKey.get(state.selectedKey); const selectedClaimBase = selected && claimBaseFor(selected); const selectedClaimLock = selectedClaimBase && claimLockReason(selected);
     if (ui.selectedTile) ui.selectedTile.textContent = selected ? `${selected.q}, ${selected.r} · ${selected.captured ? "아군 영토" : selected.enemyCiv ? "적 영토" : "중립"}` : "선택 없음";
-    if (ui.selectedAction) { const turret = selected?.baseLevel ? baseTurretStats(selected.baseLevel) : null; const suitability = selectedClaimBase ? claimSuitability(selected, selectedClaimBase) : null; ui.selectedAction.textContent = !selected ? "지도에서 헥스를 선택하세요" : selected.enemyStructure?.breached ? siegeBaseFor(selected) ? "수도 공성 가능" : "거점 영향권 밖" : selectedClaimBase ? selectedClaimLock ? `개척 잠김 · ${selectedClaimLock} · 최초 투자 15` : `개척 ${Math.ceil(claimStageDuration(selected) * 3)}초 · ${selected.claimFunded ? "투자 완료" : "산업 15 투자"} · 적합도 ${claimSuitabilityGrade(suitability)} ${suitability} · ${terrainModifiers(selected).label}` : selected.captured && !selected.building ? "새 거점 설립 가능" : selected.baseLevel ? `거점 Lv.${selected.baseLevel} · HP ${Math.ceil(selected.baseHp)}/${selected.baseMaxHp} · 포탑 ${turret.damage}DMG/${(turret.range / view.hexSize).toFixed(1)}H/${turret.rate.toFixed(1)}s${selected.defenseClock > 0 ? " · 방어 중" : ""}` : "명령 없음"; }
+    if (ui.selectedAction) { const turret = selected?.baseLevel ? baseTurretStats(selected.baseLevel) : null; const suitability = selectedClaimBase ? claimSuitability(selected, selectedClaimBase) : null; ui.selectedAction.textContent = !selected ? "지도에서 헥스를 선택하세요" : selected.enemyStructure?.breached ? siegeBaseFor(selected) ? "수도 공성 가능" : "거점 영향권 밖" : selectedClaimBase ? selectedClaimLock ? `개척 잠김 · ${selectedClaimLock} · 최초 투자 15` : `개척 ${Math.ceil(claimStageDuration(selected) * 3)}초 · ${selected.claimFunded ? "투자 완료" : "산업 15 투자"} · 적합도 ${claimSuitabilityGrade(suitability)} ${suitability} · ${terrainModifiers(selected).label}` : selected.captured && !selected.building ? state.production >= 50 ? "새 거점 설립 가능" : `새 거점 · 산업력 50 필요 (${Math.floor(state.production)} / 50)` : selected.baseLevel ? `거점 Lv.${selected.baseLevel} · HP ${Math.ceil(selected.baseHp)}/${selected.baseMaxHp} · 포탑 ${turret.damage}DMG/${(turret.range / view.hexSize).toFixed(1)}H/${turret.rate.toFixed(1)}s${selected.defenseClock > 0 ? " · 방어 중" : ""}` : "명령 없음"; }
     if (ui.defenseStatus) { const assaultUnits = state.assault ? state.enemies.filter((enemy) => enemy.assaultId === state.assault.id).length : 0; ui.defenseStatus.textContent = state.assault ? `공세 진행 · ${state.assault.targetKey} · 잔여 ${assaultUnits}` : `다음 공세 ${Math.max(0, Math.ceil(state.assaultClock))}초`; }
     if (ui.capitalCycle) ui.capitalCycle.textContent = `수도 산업 +${Math.round(capitalProductionYield())} (${Math.ceil(state.capitalProductionClock)}초) · 과학 +${Math.round(capitalScienceYield())} (${Math.ceil(state.capitalScienceClock)}초)`;
     if (ui.foundBase) ui.foundBase.disabled = !selected?.captured || Boolean(selected.building) || state.production < 50;
