@@ -37,14 +37,16 @@
       <div class="resource-chips" aria-label="문명 자원">
         <div class="resource-chip industry"><span>산업</span><strong id="production-value">25</strong></div>
         <div class="resource-chip science"><span>과학</span><strong id="science-value">0</strong></div>
+        <div class="resource-chip settlement"><span>거점 키트</span><strong id="settlement-kit-value">0</strong></div>
       </div>
       <div class="top-actions">
-        <button id="tech-button" class="quiet-button research-trigger" type="button">연구</button>
+        <button id="tech-button" class="quiet-button research-trigger" type="button">연구 · R</button>
         <button id="build-button" class="quiet-button build-trigger" type="button">건설</button>
         <button id="intel-button" class="quiet-button intel-trigger" type="button">정보</button>
         <button id="pause-button" class="quiet-button" type="button">일시정지</button>
       </div>
     </header>
+    <div id="supply-status" class="supply-status" aria-live="polite">보급 신호 탐색 중</div>
 
     <aside class="hud hud-left" aria-label="기체 상태">
       <p class="panel-label">PILOT STATUS</p>
@@ -94,15 +96,18 @@
       <div class="meter capture"><i id="capture-fill"></i></div>
       <div class="selection-line"><span id="selected-tile-value">선택 없음</span><strong id="selected-action-value">명령 대기</strong></div>
       <div class="selection-actions">
-        <button id="found-base-button" type="button" disabled>거점 설립 · 50</button>
+        <button id="settlement-kit-button" class="kit-purchase" type="button">거점 키트 구매 · 120</button>
+        <button id="found-base-button" type="button" disabled>거점 배치 · 키트 필요</button>
         <button id="ship-button" type="button" disabled>우주선 건조 · 90</button>
       </div>
+      <p class="settlement-kit-hint">키트 구매 후 아군 수도에서 4~5칸 떨어진 중립지를 선택해 배치하십시오.</p>
     </section>
 
     <footer class="controls" aria-label="조작법">
       <span><kbd>WASD</kbd> 이동</span>
       <span><kbd>클릭/탭</kbd> 영토 명령</span>
       <span><kbd>공격</kbd> 자동</span>
+      <span><kbd>R</kbd> 연구</span>
       <span><kbd>B</kbd> 건설</span>
       <span><kbd>P</kbd> 일시정지</span>
     </footer>
@@ -116,8 +121,8 @@
         <h2 id="lobby-title">출격 좌표를<br>선택하십시오.</h2>
         <p class="lead">자동 전투 기체를 지휘해 영토를 잇고 문명을 성장시키십시오. 적 수도를 점령하거나 우주선을 완성하면 전선에서 승리합니다.</p>
         <dl class="lobby-readout" aria-label="전장 요약">
-          <div><dt>GRID</dt><dd>817 HEX</dd></div>
-          <div><dt>HOSTILES</dt><dd>3 CIVS</dd></div>
+          <div><dt>GRID</dt><dd>1261 HEX</dd></div>
+          <div><dt>HOSTILES</dt><dd>1 FACTION · 3 HQ</dd></div>
           <div><dt>ENDINGS</dt><dd>2 ROUTES</dd></div>
         </dl>
       </div>
@@ -127,13 +132,13 @@
         <button id="mode-normal-button" class="mode-card normal" type="button">
           <span class="mode-coordinate">SECTOR 01 · STANDARD</span>
           <strong>개척 전선</strong>
-          <small>817개 타일에서 두 승리 조건을 향해 자유롭게 성장합니다.</small>
+          <small>1261개 타일에서 두 승리 조건을 향해 자유롭게 성장합니다.</small>
           <b>일반 모드 시작 →</b>
         </button>
         <button id="mode-tutorial-button" class="mode-card tutorial" type="button">
           <span class="mode-coordinate">SECTOR T0 · TRAINING</span>
           <strong>지휘 훈련</strong>
-          <small>이동, 개척, 건설, 연구의 핵심 흐름을 짧게 익힙니다.</small>
+          <small>이동, 수도 확장, 정착 키트, 방어와 증강을 짧게 익힙니다.</small>
           <b>튜토리얼 시작 →</b>
         </button>
       </div>
@@ -158,13 +163,17 @@
             <div><span>과학 연구</span><strong id="science-rate">+0.0/s</strong></div>
           </div>
           <div class="capital-cycle-status" id="capital-cycle-status">수도 생산 주기 준비 중</div>
+          <div class="supply-intel">
+            <span>현장 보급</span><strong>지도 신호에 접근하면 즉시 회수</strong>
+            <span>거점 키트</span><strong>산업 120으로 구매 · 상단에 보유량 표시</strong>
+          </div>
           <div class="territory-legend" aria-label="영토 색상 범례">
             <span class="own">아군</span><span class="neutral">중립</span><span class="hostile">적군</span>
           </div>
           <button id="legend-button" class="legend-button" type="button" aria-haspopup="dialog">지도 기호 전체 보기</button>
         </section>
         <section class="intel-section hostile-intel" aria-labelledby="hostile-intel-title">
-          <p class="panel-label hostile" id="hostile-intel-title">HOSTILE CIVILIZATIONS</p>
+          <p class="panel-label hostile" id="hostile-intel-title">HOSTILE FACTION</p>
           <div class="enemy-grid" aria-label="적 문명 현황">
             <div><strong id="enemy-capitals-value">3 / 3</strong><span>남은 수도</span></div>
             <div><strong id="enemy-territory-value">0</strong><span>적 영토</span></div>
@@ -201,7 +210,7 @@
           <ul class="legend-list ownership-list">
             <li><i class="key-hex own"></i><span><strong>아군</strong><small>청록색 면과 테두리</small></span></li>
             <li><i class="key-hex neutral"></i><span><strong>중립</strong><small>회청색 타일</small></span></li>
-            <li><i class="key-hex hostile"></i><span><strong>적군</strong><small>적색·보라색 영토</small></span></li>
+            <li><i class="key-hex hostile"></i><span><strong>적군</strong><small>통합 진홍색 영토</small></span></li>
             <li><i class="key-hex selected"></i><span><strong>선택</strong><small>노란색 외곽선</small></span></li>
           </ul>
         </section>
@@ -212,6 +221,16 @@
             <li><i>▲</i><span><strong>능선</strong><small>방어·시야 유리</small></span></li>
             <li><i>○</i><span><strong>분화구</strong><small>산업 생산 보너스</small></span></li>
             <li><i>≈</i><span><strong>사구</strong><small>이동·개척 지연</small></span></li>
+            <li><i class="wall">▰</i><span><strong>장벽</strong><small>기체와 유닛 통과 불가</small></span></li>
+          </ul>
+        </section>
+        <section aria-labelledby="legend-supply-title">
+          <h3 id="legend-supply-title">현장 보급</h3>
+          <ul class="legend-list glyph-list supply-list">
+            <li><i class="industry">I</i><span><strong>산업 보급</strong><small>즉시 산업력 획득</small></span></li>
+            <li><i class="science">Σ</i><span><strong>연구 보급</strong><small>즉시 과학 획득</small></span></li>
+            <li><i class="repair">+</i><span><strong>수복 보급</strong><small>기체 내구도 회복</small></span></li>
+            <li><i class="combat">A</i><span><strong>증강 보급</strong><small>전투 증강 선택 즉시 개방</small></span></li>
           </ul>
         </section>
         <section aria-labelledby="legend-resource-title">
@@ -228,6 +247,7 @@
           <ul class="legend-list building-list">
             <li><i>HQ</i><span><strong>수도</strong><small>문명의 중심</small></span></li>
             <li><i>O</i><span><strong>전초기지</strong><small>국경 자동 확장</small></span></li>
+            <li><i>T</i><span><strong>방어 타워</strong><small>침공군 자동 추적</small></span></li>
             <li><i>F</i><span><strong>군수공장</strong><small>산업·산탄 포격</small></span></li>
             <li><i>L</i><span><strong>연구소</strong><small>과학·레일 포격</small></span></li>
             <li><i>S</i><span><strong>사일로</strong><small>유도탄 발사</small></span></li>
@@ -256,6 +276,9 @@
       <h2 id="build-title">점령지를 전문화하십시오.</h2>
       <p id="build-tile-info" class="build-tile-info">점령한 빈 타일 위에서 건설할 수 있습니다.</p>
       <div class="build-options">
+        <button id="build-tower" class="build-card tower" type="button">
+          <span>35 산업력</span><strong>방어 타워</strong><small>주변 침공군을 자동 추적하는 고정 방어포를 설치합니다.</small>
+        </button>
         <button id="build-outpost" class="build-card outpost" type="button">
           <span>30 산업력</span><strong>전초기지</strong><small>인접 국경을 주기적으로 자동 점령합니다.</small>
         </button>

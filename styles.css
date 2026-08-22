@@ -92,6 +92,7 @@ h2 { margin-bottom: .75rem; font: 900 clamp(2rem, 6vw, 4.6rem)/.9 var(--display)
 .resource-chip span { color: var(--muted); font: 700 .5rem var(--utility); letter-spacing: .08em; }
 .resource-chip strong { color: var(--yellow); font: 800 .75rem var(--utility); }
 .resource-chip.science strong { color: var(--violet); }
+.resource-chip.settlement strong { color: var(--cyan); }
 .top-actions { justify-self: end; display: flex; gap: .45rem; pointer-events: auto; }
 .quiet-button {
   padding: .55rem .8rem;
@@ -105,6 +106,24 @@ h2 { margin-bottom: .75rem; font: 900 clamp(2rem, 6vw, 4.6rem)/.9 var(--display)
 .build-trigger { border-color: rgba(244, 201, 93, .48); color: var(--yellow); }
 .research-trigger { border-color: rgba(185, 156, 255, .52); color: var(--violet); }
 .intel-trigger { border-color: rgba(54, 224, 197, .42); color: var(--cyan); }
+.supply-status {
+  position: absolute;
+  z-index: 5;
+  top: 4.85rem;
+  left: 50%;
+  max-width: min(24rem, calc(100% - 2rem));
+  overflow: hidden;
+  padding: .3rem .6rem;
+  border: 1px solid rgba(54, 224, 197, .28);
+  color: var(--cyan);
+  background: rgba(7, 16, 25, .78);
+  font: 700 .5rem var(--utility);
+  letter-spacing: .06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
 
 .hud {
   position: absolute;
@@ -248,10 +267,12 @@ h2 { margin-bottom: .75rem; font: 900 clamp(2rem, 6vw, 4.6rem)/.9 var(--display)
 .command-panel { pointer-events: auto; }
 .selection-line { display: flex; justify-content: space-between; gap: .6rem; margin-top: .5rem; color: var(--muted); font-size: .6rem; }
 .selection-line strong { color: var(--ice); font: 700 .58rem var(--utility); }
-.selection-actions { display: flex; gap: .45rem; margin-top: .5rem; }
-.selection-actions button { flex: 1; padding: .42rem .5rem; border: 1px solid rgba(216, 245, 240, .24); color: var(--ice); background: rgba(7, 16, 25, .8); cursor: pointer; font-size: .58rem; }
+.selection-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; margin-top: .5rem; }
+.selection-actions button { padding: .42rem .5rem; border: 1px solid rgba(216, 245, 240, .24); color: var(--ice); background: rgba(7, 16, 25, .8); cursor: pointer; font-size: .58rem; }
 .selection-actions button:last-child { border-color: rgba(185, 156, 255, .42); color: var(--violet); }
 .selection-actions button:disabled { cursor: not-allowed; opacity: .35; }
+.selection-actions .kit-purchase { border-color: rgba(54, 224, 197, .38); color: var(--cyan); }
+.settlement-kit-hint { margin: .42rem 0 0; color: var(--muted); font-size: .52rem; line-height: 1.4; }
 
 .controls {
   position: absolute;
@@ -420,7 +441,7 @@ kbd { padding: .15rem .32rem; border: 1px solid rgba(216, 245, 240, .34); color:
 .build-modal { width: min(68rem, 100%); }
 .build-modal h2 { max-width: 50rem; }
 .build-tile-info { margin-bottom: 1.2rem; color: var(--muted); font-size: .78rem; }
-.build-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; }
+.build-options { display: grid; grid-template-columns: repeat(5, 1fr); gap: .7rem; }
 .build-card {
   position: relative;
   min-height: 13rem;
@@ -433,6 +454,7 @@ kbd { padding: .15rem .32rem; border: 1px solid rgba(216, 245, 240, .34); color:
 }
 .build-card::before { content: ""; position: absolute; top: -1px; left: -1px; width: 3.2rem; height: 2px; background: var(--cyan); }
 .build-card.outpost::before { background: var(--cyan); }
+.build-card.tower::before { background: #63e6ff; }
 .build-card.factory::before { background: var(--red); }
 .build-card.lab::before { background: var(--violet); }
 .build-card.silo::before { background: var(--yellow); }
@@ -490,6 +512,11 @@ kbd { padding: .15rem .32rem; border: 1px solid rgba(216, 245, 240, .34); color:
 .key-hex.selected { color: var(--yellow); background: transparent; }
 .glyph-list i { color: var(--ice); border: 1px solid rgba(216, 245, 240, .15); }
 .glyph-list.resources i { color: var(--yellow); }
+.glyph-list i.wall { color: #6f7d86; border-color: rgba(125, 146, 157, .28); }
+.supply-list i.industry { color: #ff9f43; border-color: rgba(255, 159, 67, .34); }
+.supply-list i.science { color: var(--violet); border-color: rgba(185, 156, 255, .34); }
+.supply-list i.repair { color: #72ef9f; border-color: rgba(114, 239, 159, .34); }
+.supply-list i.combat { color: #ffcf5a; border-color: rgba(255, 207, 90, .34); }
 .building-list i { color: var(--cyan); border: 1px solid rgba(54, 224, 197, .24); }
 .building-list i.enemy { color: var(--red); border-color: rgba(255, 93, 115, .3); }
 .intel-modal { width: min(64rem, 100%); padding: clamp(1.2rem, 3vw, 2rem); }
@@ -500,6 +527,9 @@ kbd { padding: .15rem .32rem; border: 1px solid rgba(216, 245, 240, .34); color:
 .intel-section .big-stat { justify-content: flex-start; }
 .intel-section .economy-grid { grid-template-columns: repeat(2, 1fr); }
 .intel-section .telemetry { margin-top: .65rem; }
+.supply-intel { display: grid; grid-template-columns: auto 1fr; gap: .35rem .65rem; margin-top: .55rem; padding: .55rem; border: 1px solid rgba(54, 224, 197, .12); background: rgba(54, 224, 197, .035); font: 650 .52rem/1.4 var(--utility); }
+.supply-intel span { color: var(--cyan); }
+.supply-intel strong { color: var(--muted); font-weight: 650; }
 .intel-section .panel-label.hostile { color: var(--red); }
 .intel-actions { display: flex; justify-content: flex-end; margin-top: 1rem; }
 .danger-action { border-color: rgba(255, 93, 115, .34); color: var(--red); }
@@ -531,7 +561,8 @@ kbd { padding: .15rem .32rem; border: 1px solid rgba(216, 245, 240, .34); color:
   .resource-chip strong { font-size: .62rem; }
   .top-actions { grid-column: 1 / -1; justify-self: stretch; display: grid; grid-template-columns: repeat(4, 1fr); gap: .3rem; }
   .quiet-button { padding: .44rem .4rem; font-size: .58rem; white-space: nowrap; }
-  .hud { top: 7.25rem; width: calc(50% - .8rem); padding: .55rem; }
+  .supply-status { top: 6.75rem; max-width: calc(100% - 1.1rem); }
+  .hud { top: 8.4rem; width: calc(50% - .8rem); padding: .55rem; }
   .hud-left { left: .55rem; }
   .hud-right { right: .55rem; }
   .hud .panel-label { font-size: .48rem; }
@@ -596,6 +627,8 @@ kbd { padding: .15rem .32rem; border: 1px solid rgba(216, 245, 240, .34); color:
   .intel-section { padding: .75rem; }
   .intel-section .big-stat { padding: .4rem 0 .6rem; }
   .intel-modal { padding: 1rem; }
+  .selection-actions { grid-template-columns: repeat(2, 1fr); }
+  .selection-actions .kit-purchase { grid-column: 1 / -1; }
   .modal { max-height: calc(100vh - 2rem); overflow: auto; }
 }
 
