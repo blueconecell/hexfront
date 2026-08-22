@@ -69,10 +69,7 @@
   ]);
   const TERRAIN_MODIFIERS = Object.freeze({
     plain: { move: 1, claim: 1, defense: 1, vision: 0, industry: 0, label: "표준 지형" },
-    ridge: { move: 0.92, claim: 1.05, defense: 0.82, vision: 1, industry: 0, label: "방어 -18% · 시야 +1" },
-    crater: { move: 0.9, claim: 1.1, defense: 1, vision: 0, industry: 2, label: "산업 펄스 +2" },
-    dunes: { move: 0.82, claim: 1.25, defense: 1, vision: 0, industry: 0, label: "이동 -18% · 점령 +25%" },
-    wall: { move: 0, claim: Infinity, defense: 1, vision: 0, industry: 0, label: "장벽 · 통과/정착 불가" }
+    mountain: { move: 0, claim: Infinity, defense: 1, vision: 0, industry: 0, label: "산맥 · 통과/정착 불가" }
   });
   const HEX_DIRECTIONS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
   const BUILDINGS = Object.freeze({ outpost: 30, tower: 35, factory: 40, lab: 45, silo: 55 });
@@ -103,28 +100,46 @@
     return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
   }
 
-  function protectedFromWall(q, r) {
+  function axialLine(a, b) {
+    const distance = hexDistance(a, b); const points = [];
+    for (let i = 0; i <= distance; i += 1) { const t = distance ? i / distance : 0; const x = a.q + (b.q - a.q) * t; const z = a.r + (b.r - a.r) * t; const y = -x - z; let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z); const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z); if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; else rz = -rx - ry; points.push({ q: rx, r: rz }); }
+    return points;
+  }
+
+  function protectedFromMountain(q, r) {
     if (hexDistance({ q, r }, { q: 0, r: 0 }) <= 2) return true;
     const points = ENEMY_CIVS.flatMap((civ) => [{ q: civ.q, r: civ.r }, ...civ.guardians.map(([gq, gr]) => ({ q: gq, r: gr }))]);
-    return points.some((point) => hexDistance({ q, r }, point) <= 1);
+    if (points.some((point) => hexDistance({ q, r }, point) <= 1)) return true;
+    return ENEMY_CIVS.some((civ) => axialLine({ q: 0, r: 0 }, civ).some((point) => point.q === q && point.r === r));
+  }
+
+  function makeMountainKeys() {
+    const inside = (q, r) => Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) <= MAP_RADIUS;
+    const candidates = []; for (let q = -MAP_RADIUS; q <= MAP_RADIUS; q += 1) for (let r = Math.max(-MAP_RADIUS, -q - MAP_RADIUS); r <= Math.min(MAP_RADIUS, -q + MAP_RADIUS); r += 1) if (!protectedFromMountain(q, r)) candidates.push({ q, r, key: `${q},${r}` });
+    candidates.sort((a, b) => coordinateHash(a.q + 83, a.r - 37) - coordinateHash(b.q + 83, b.r - 37)); const mountains = new Set();
+    for (let chain = 0; chain < 12; chain += 1) {
+      const start = candidates.find((hex) => !mountains.has(hex.key) && !HEX_DIRECTIONS.some(([dq, dr]) => mountains.has(`${hex.q + dq},${hex.r + dr}`))); if (!start) break;
+      const additions = [start]; let current = start; const length = 4 + chain % 4;
+      for (let step = 1; step < length; step += 1) { const choices = HEX_DIRECTIONS.map(([dq, dr]) => ({ q: current.q + dq, r: current.r + dr, key: `${current.q + dq},${current.r + dr}` }))
+          .filter((hex) => inside(hex.q, hex.r) && !protectedFromMountain(hex.q, hex.r) && !mountains.has(hex.key) && !HEX_DIRECTIONS.some(([dq, dr]) => mountains.has(`${hex.q + dq},${hex.r + dr}`)) && !additions.some((item) => item.key === hex.key))
+          .sort((a, b) => coordinateHash(a.q + chain * 17 + step, a.r - chain * 11) - coordinateHash(b.q + chain * 17 + step, b.r - chain * 11)); if (!choices.length) break; current = choices[0]; additions.push(current); }
+      if (additions.length >= 3) for (const hex of additions) mountains.add(hex.key);
+    }
+    return mountains;
   }
 
   function makeHexes() {
-    const hexes = [];
+    const hexes = []; const mountainKeys = makeMountainKeys();
     for (let q = -MAP_RADIUS; q <= MAP_RADIUS; q += 1) {
       const rMin = Math.max(-MAP_RADIUS, -q - MAP_RADIUS);
       const rMax = Math.min(MAP_RADIUS, -q + MAP_RADIUS);
       for (let r = rMin; r <= rMax; r += 1) {
-        const terrainRoll = coordinateHash(q, r);
-        const resourceRoll = coordinateHash(q + 31, r - 19);
-        const wall = !protectedFromWall(q, r) && coordinateHash(q - 47, r + 23) < 0.118;
-        const terrain = wall ? "wall" : terrainRoll < 0.2 ? "crater" : terrainRoll < 0.4 ? "ridge" : terrainRoll < 0.65 ? "dunes" : "plain";
-        const resource = resourceRoll < 0.08 ? "core" : resourceRoll < 0.2 ? "ore" : resourceRoll < 0.27 ? "ruins" : resourceRoll < 0.35 ? "garden" : null;
-        hexes.push({ q, r, key: `${q},${r}`, terrain, resource, captured: q === 0 && r === 0,
+        const terrain = mountainKeys.has(`${q},${r}`) ? "mountain" : "plain";
+        hexes.push({ q, r, key: `${q},${r}`, terrain, captured: hexDistance({ q, r }, { q: 0, r: 0 }) <= 1,
           building: q === 0 && r === 0 ? "command" : null, baseLevel: q === 0 && r === 0 ? 1 : 0, baseGrowth: 0,
-          baseHp: q === 0 && r === 0 ? 600 : 0, baseMaxHp: q === 0 && r === 0 ? 600 : 0, defenseClock: 0, turretClock: 0, capitalExpansionClock: q === 0 && r === 0 ? 26 : 0,
+          baseHp: q === 0 && r === 0 ? 600 : 0, baseMaxHp: q === 0 && r === 0 ? 600 : 0, defenseClock: 0, turretClock: 0, capitalExpansionClock: q === 0 && r === 0 ? 26 : 0, capitalExpansionDuration: q === 0 && r === 0 ? 26 : 0, expansionTargetKey: null,
           claimStage: 0, claimProgress: 0, claimFunded: false, enemyCiv: null, enemyStructure: null, enemyNeutralized: false,
-          discovered: false, visible: false, rewardClaimed: false, supply: null });
+          discovered: false, visible: false, supply: null });
       }
     }
     return hexes;
@@ -147,7 +162,7 @@
   }
 
   function setupSupplies(targetState) {
-    const candidates = targetState.hexes.filter((hex) => !hex.captured && !hex.enemyCiv && hex.terrain !== "wall" && hexDistance(hex, { q: 0, r: 0 }) >= 3)
+    const candidates = targetState.hexes.filter((hex) => !hex.captured && !hex.enemyCiv && hex.terrain !== "mountain" && hexDistance(hex, { q: 0, r: 0 }) >= 3)
       .sort((a, b) => coordinateHash(a.q + 71, a.r - 29) - coordinateHash(b.q + 71, b.r - 29));
     ["augment", "med", "science", "industry"].forEach((type, typeIndex) => { for (let i = 0; i < 6; i += 1) { const hex = candidates[typeIndex * 6 + i]; if (hex) hex.supply = type; } });
   }
@@ -285,16 +300,13 @@
   function capitalProductionYield() {
     const commands = liveCommands(); if (!commands.length) return 0;
     const commandYield = commands.reduce((sum, hq) => sum + 12 * (1 + (hq.baseLevel - 1) * 0.25), 0);
-    const terrain = state.hexes.filter((hex) => hex.captured).reduce((sum, hex) => sum + terrainModifiers(hex).industry, 0);
-    const ore = state.hexes.filter((hex) => hex.captured && hex.resource === "ore").length;
-    return (commandYield + terrain + ore * 2 + buildingCount("factory") * 5) * state.productionMultiplier * (state.techs.metropolitan ? 1.15 : 1);
+    return (commandYield + buildingCount("factory") * 5) * state.productionMultiplier * (state.techs.metropolitan ? 1.15 : 1);
   }
 
   function capitalScienceYield() {
-    const ruins = state.hexes.filter((hex) => hex.captured && hex.resource === "ruins").length;
     const commands = liveCommands(); if (!commands.length) return 0;
     const commandYield = commands.reduce((sum, hq) => sum + 6 * (1 + (hq.baseLevel - 1) * 0.25), 0);
-    return (commandYield + buildingCount("lab") * 3 + ruins * 2) * state.scienceMultiplier * (state.techs.research_network ? 1.2 : 1);
+    return (commandYield + buildingCount("lab") * 3) * state.scienceMultiplier * (state.techs.research_network ? 1.2 : 1);
   }
 
   function productionRate() { return capitalProductionYield() / 10; }
@@ -310,15 +322,28 @@
   function liveCommands() { return state.hexes.filter((hex) => hex.captured && hex.building === "command" && hex.baseHp > 0); }
   function settlementKitCost() { return state.techs.frontier ? 100 : 120; }
   function commandExpansionInterval(command) { return (24 + Math.floor(coordinateHash(command.q + 9, command.r - 5) * 7)) * (state.techs.frontier ? 0.8 : 1) * (state.techs.colonial_admin ? 0.75 : 1); }
+  function commandFrontierCandidates(command) {
+    const queue = [command]; const connected = new Set([command.key]); const frontier = new Map();
+    for (let head = 0; head < queue.length; head += 1) for (const next of neighbors(queue[head])) {
+      if (next.captured && !connected.has(next.key)) { connected.add(next.key); queue.push(next); }
+      else if (!next.captured && !next.enemyCiv && next.terrain !== "mountain") frontier.set(next.key, next);
+    }
+    return [...frontier.values()];
+  }
   function updateCommandExpansion(dt) {
     if (state.tutorial && state.tutorial.step !== 1) return;
     for (const command of liveCommands()) {
       if (command.baseHp < command.baseMaxHp * (state.techs.logistics ? 0.6 : 0.7)) continue;
+      const reserved = new Set(liveCommands().filter((other) => other !== command).map((other) => other.expansionTargetKey).filter(Boolean));
+      let target = state.hexByKey.get(command.expansionTargetKey);
+      if (!target || target.captured || target.enemyCiv || target.terrain === "mountain") {
+        target = commandFrontierCandidates(command).filter((hex) => !reserved.has(hex.key))
+          .sort((a, b) => hexDistance(a, command) - hexDistance(b, command) || coordinateHash(a.q + command.q, a.r + command.r) - coordinateHash(b.q + command.q, b.r + command.r))[0] || null;
+        command.expansionTargetKey = target?.key || null;
+      }
       command.capitalExpansionClock = (command.capitalExpansionClock || commandExpansionInterval(command)) - dt;
       if (command.capitalExpansionClock > 0) continue;
-      const target = neighbors(command).filter((hex) => !hex.captured && !hex.enemyCiv && hex.terrain !== "wall")
-        .sort((a, b) => coordinateHash(a.q + state.capitalProductionPulses, a.r - state.capitalSciencePulses) - coordinateHash(b.q + state.capitalProductionPulses, b.r - state.capitalSciencePulses))[0];
-      if (target) captureHex(target, "수도 자동 확장"); command.capitalExpansionClock = commandExpansionInterval(command);
+      if (target) captureHex(target, "수도 자동 확장"); const duration = commandExpansionInterval(command); command.capitalExpansionClock = duration; command.capitalExpansionDuration = duration; command.expansionTargetKey = null;
     }
   }
 
@@ -337,7 +362,7 @@
   function enterTutorialStep(step) {
     const tutorial = state.tutorial; if (!tutorial || tutorial.complete) return;
     tutorial.step = Math.max(0, Math.min(5, step));
-    if (tutorial.step === 1) { tutorial.startTerritory = capturedCount(); for (const command of liveCommands()) command.capitalExpansionClock = Math.min(2, command.capitalExpansionClock || 2); }
+    if (tutorial.step === 1) { tutorial.startTerritory = capturedCount(); for (const command of liveCommands()) { command.capitalExpansionClock = Math.min(2, command.capitalExpansionClock || 2); command.capitalExpansionDuration = 2; command.expansionTargetKey = null; } }
     if (tutorial.step === 2) state.production = Math.max(state.production, settlementKitCost());
     if (tutorial.step === 3) { tutorial.pulseStart = state.capitalProductionPulses; state.capitalProductionClock = Math.min(2, state.capitalProductionClock); }
     if (tutorial.step === 4 && !tutorial.waveStarted) {
@@ -381,13 +406,12 @@
       const length = Math.hypot(dx, dy); dx /= length; dy /= length;
       const terrain = hexAt(p.x, p.y); const moveScale = terrainModifiers(terrain).move;
       const oldX = p.x; const oldY = p.y; p.x += dx * p.speed * moveScale * dt; p.y += dy * p.speed * moveScale * dt;
-      if (!hexAt(p.x, p.y) || hexAt(p.x, p.y).terrain === "wall") { p.x = oldX; p.y = oldY; }
+      if (!hexAt(p.x, p.y) || hexAt(p.x, p.y).terrain === "mountain") { p.x = oldX; p.y = oldY; }
     }
     p.fireClock = Math.max(0, p.fireClock - dt); p.autoClock -= dt; p.railClock -= dt; p.missileClock -= dt;
     p.chainClock -= dt; p.mineClock -= dt; p.fusionClock -= dt;
     p.invulnerable = Math.max(0, p.invulnerable - dt); p.orbitAngle += dt * 2.8;
-    const gardenRegen = state.hexes.filter((h) => h.captured && h.resource === "garden").length * 0.06;
-    p.hp = Math.min(p.maxHp, p.hp + (p.regen + gardenRegen) * dt);
+    p.hp = Math.min(p.maxHp, p.hp + p.regen * dt);
     if (p.fireClock <= 0) autoPrimary(); if (p.autoClock <= 0) autoAttack();
     if (p.chainLevel > 0 && p.chainClock <= 0) chainLightning();
     if (p.mineLevel > 0 && p.mineClock <= 0) deployMine();
@@ -492,8 +516,11 @@
     }
   }
 
-  function baseTurretStats(level) {
-    return { range: view.hexSize * (2.2 + level * 0.45), damage: (10 + level * 8) * (state.techs.ballistics ? 1.2 : 1), rate: 1.25 - level * 0.2 };
+  function baseTurretStats(level, type = "outpost") {
+    const stats = { range: view.hexSize * (2.2 + level * 0.45), damage: (10 + level * 8) * (state.techs.ballistics ? 1.2 : 1), rate: 1.25 - level * 0.2 };
+    if (type === "command") { stats.range *= 1.45; stats.damage *= 2.2; stats.rate *= 0.6; }
+    else if (type === "tower") { stats.range *= 1.15; stats.damage *= 1.3; stats.rate *= 0.82; }
+    return stats;
   }
 
   function baseTurretTarget(base, range) {
@@ -507,7 +534,7 @@
     for (const base of playerBases()) {
       base.turretClock = Math.max(0, (base.turretClock || 0) - dt);
       if (base.turretClock > 0) continue;
-      const stats = baseTurretStats(base.baseLevel); const target = baseTurretTarget(base, stats.range);
+      const stats = baseTurretStats(base.baseLevel, base.building); const target = baseTurretTarget(base, stats.range);
       if (!target) continue;
       const center = axialToWorld(base.q, base.r); const angle = Math.atan2(target.y - center.y, target.x - center.x);
       addProjectile("base", center.x, center.y, angle, 520, 5, stats.damage, 1.2, 0, "#72ef9f",
@@ -531,7 +558,7 @@
       }
       let angle = Math.atan2(waypoint.y - enemy.y, waypoint.x - enemy.x); const oldX = enemy.x; const oldY = enemy.y;
       enemy.x += Math.cos(angle) * enemy.speed * dt; enemy.y += Math.sin(angle) * enemy.speed * dt; enemy.touch -= dt;
-      if (hexAt(enemy.x, enemy.y)?.terrain === "wall") {
+      if (hexAt(enemy.x, enemy.y)?.terrain === "mountain") {
         enemy.x = oldX; enemy.y = oldY;
         if (currentHex && targetHex && enemy.pathTargetKey !== targetHex.key) { enemy.pathKeys = findPassablePath(currentHex, targetHex); enemy.pathTargetKey = targetHex.key; const nextHex = state.hexByKey.get(enemy.pathKeys[0]); if (nextHex) { const next = axialToWorld(nextHex.q, nextHex.r); angle = Math.atan2(next.y - enemy.y, next.x - enemy.x); enemy.x += Math.cos(angle) * enemy.speed * dt; enemy.y += Math.sin(angle) * enemy.speed * dt; } }
       }
@@ -545,7 +572,7 @@
     const queue = [start]; const previous = new Map([[start.key, null]]);
     for (let head = 0; head < queue.length; head += 1) {
       const current = queue[head]; if (current.key === goal.key) break;
-      for (const next of neighbors(current)) { if (next.terrain === "wall" || previous.has(next.key)) continue; previous.set(next.key, current.key); queue.push(next); }
+      for (const next of neighbors(current)) { if (next.terrain === "mountain" || previous.has(next.key)) continue; previous.set(next.key, current.key); queue.push(next); }
     }
     if (!previous.has(goal.key)) return [];
     const path = []; let key = goal.key; while (key && key !== start.key) { path.push(key); key = previous.get(key); } return path.reverse();
@@ -623,7 +650,7 @@
     const wildCount = state.enemies.filter((enemy) => enemy.originCiv === "wild").length;
     if (wildCount >= (state.mode === "tutorial" ? 4 : WILD_CAP)) return false;
     const playerHex = hexAt(state.player.x, state.player.y);
-    const eligible = state.hexes.filter((hex) => hex.terrain !== "wall" && !hex.captured && !hex.enemyCiv && !hex.enemyNeutralized &&
+    const eligible = state.hexes.filter((hex) => hex.terrain !== "mountain" && !hex.captured && !hex.enemyCiv && !hex.enemyNeutralized &&
       (!playerHex || (hexDistance(hex, playerHex) >= 3 && hexDistance(hex, playerHex) <= 6)));
     if (!eligible.length) return false;
     const ordered = eligible.sort((a, b) => coordinateHash(a.q + state.wildSpawnIndex * 7, a.r - state.wildSpawnIndex * 11) -
@@ -648,7 +675,7 @@
   function enemyExpansionCandidates(civ) {
     const result = new Map();
     for (const owned of state.hexes.filter((hex) => hex.enemyCiv === civ.id)) {
-      for (const hex of neighbors(owned)) if (hex.terrain !== "wall" && !hex.captured && !hex.enemyCiv && !hex.enemyNeutralized) result.set(hex.key, hex);
+      for (const hex of neighbors(owned)) if (hex.terrain !== "mountain" && !hex.captured && !hex.enemyCiv && !hex.enemyNeutralized) result.set(hex.key, hex);
     }
     return [...result.values()].sort((a, b) => hexDistance(b, civ) - hexDistance(a, civ) ||
       coordinateHash(a.q + civ.q, a.r + civ.r) - coordinateHash(b.q + civ.q, b.r + civ.r));
@@ -878,14 +905,8 @@
   function captureHex(hex, source = "manual") {
     if (!hex || hex.captured || hex.enemyCiv) return false;
     hex.captured = true; hex.building = null; hex.enemyNeutralized = false; hex.claimFunded = false; hex.claimStage = 0; hex.claimProgress = 0; revealAround(state, hex.q, hex.r, 2);
-    if (!hex.rewardClaimed) {
-      hex.rewardClaimed = true;
-      if (hex.resource === "core") state.player.autoDamage *= 1.12;
-      if (hex.resource === "ruins") state.science += 7;
-      if (hex.resource === "garden") state.player.hp = Math.min(state.player.maxHp, state.player.hp + 12);
-    }
     const center = axialToWorld(hex.q, hex.r); burst(center.x, center.y, "#63e6ff", 18);
-    state.messages.push({ text: `${source === "outpost" ? "전초기지 확장" : "영토 확보"}${hex.resource ? ` · ${resourceName(hex.resource)}` : ""}`, x: center.x, y: center.y, life: 1.8 });
+    state.messages.push({ text: source === "outpost" ? "전초기지 확장" : "영토 확보", x: center.x, y: center.y, life: 1.8 });
     return true;
   }
 
@@ -903,9 +924,7 @@
 
   function claimSuitability(hex, base = claimBaseFor(hex)) {
     if (!hex || !base) return null;
-    const terrainScore = { plain: 8, ridge: 13, crater: 15, dunes: -8 }[hex.terrain] || 0;
-    const resourceScore = { core: 22, ore: 18, ruins: 17, garden: 14 }[hex.resource] || 0;
-    return Math.max(20, Math.min(100, Math.round(100 - hexDistance(hex, base) * 12 + terrainScore + resourceScore)));
+    return Math.max(20, Math.min(100, Math.round(100 - hexDistance(hex, base) * 12)));
   }
 
   function claimSuitabilityGrade(score) { return score >= 85 ? "S" : score >= 70 ? "A" : score >= 50 ? "B" : "C"; }
@@ -950,7 +969,8 @@
   }
 
   function settlementSourceFor(hex) {
-    if (!hex || hex.captured || hex.enemyCiv || hex.enemyStructure || hex.terrain === "wall") return null;
+    if (!hex || hex.captured || hex.enemyCiv || hex.enemyStructure || hex.terrain === "mountain") return null;
+    const zone = [hex, ...neighbors(hex)]; if (zone.length !== 7 || zone.some((tile) => tile.terrain === "mountain" || tile.enemyCiv || tile.enemyStructure)) return null;
     return liveCommands().find((command) => { const distance = hexDistance(command, hex); return distance >= 4 && distance <= 5; }) || null;
   }
 
@@ -961,7 +981,8 @@
 
   function settleCommand(hex = state.hexByKey.get(state.selectedKey)) {
     if (!state.settlementKits || !settlementSourceFor(hex)) return false;
-    state.settlementKits -= 1; hex.captured = true; hex.building = "command"; hex.baseLevel = 1; hex.baseGrowth = 0; hex.baseMaxHp = 600; hex.baseHp = 600; hex.defenseClock = 0; hex.turretClock = 0; hex.capitalExpansionClock = commandExpansionInterval(hex); revealAround(state, hex.q, hex.r, 2); updateHud(); return true;
+    state.settlementKits -= 1; for (const tile of [hex, ...neighbors(hex)]) { tile.captured = true; tile.enemyNeutralized = false; tile.claimStage = 0; tile.claimProgress = 0; tile.claimFunded = false; }
+    hex.building = "command"; hex.baseLevel = 1; hex.baseGrowth = 0; hex.baseMaxHp = 600; hex.baseHp = 600; hex.defenseClock = 0; hex.turretClock = 0; const duration = commandExpansionInterval(hex); hex.capitalExpansionClock = duration; hex.capitalExpansionDuration = duration; hex.expansionTargetKey = null; revealAround(state, hex.q, hex.r, 2); updateHud(); return true;
   }
 
   function updateOrders(dt) {
@@ -1070,7 +1091,7 @@
 
   function updateBuildUi() {
     const hex = buildTargetTile(); const coordinate = hex ? `[${hex.q}, ${hex.r}] ` : "";
-    if (ui.buildTileInfo) ui.buildTileInfo.textContent = !hex ? "건설 대상 없음" : !hex.captured ? `${coordinate}점령 필요` : hex.building === "command" ? `${coordinate}지휘기지에는 건설 불가` : hex.building ? `${coordinate}${buildingName(hex.building)} 건설됨` : state.production < Math.min(...Object.values(BUILDINGS)) ? `${coordinate}산업력 부족 (${Math.floor(state.production)} / 최소 ${Math.min(...Object.values(BUILDINGS))})` : `${coordinate}${terrainName(hex.terrain)}${hex.resource ? ` · ${resourceName(hex.resource)}` : ""} · 산업력 ${Math.floor(state.production)}`;
+    if (ui.buildTileInfo) ui.buildTileInfo.textContent = !hex ? "건설 대상 없음" : !hex.captured ? `${coordinate}점령 필요` : hex.building === "command" ? `${coordinate}지휘기지에는 건설 불가` : hex.building ? `${coordinate}${buildingName(hex.building)} 건설됨` : state.production < Math.min(...Object.values(BUILDINGS)) ? `${coordinate}산업력 부족 (${Math.floor(state.production)} / 최소 ${Math.min(...Object.values(BUILDINGS))})` : `${coordinate}${terrainName(hex.terrain)} · 산업력 ${Math.floor(state.production)}`;
     for (const [type, cost] of Object.entries(BUILDINGS)) {
       const button = ui[`build${type[0].toUpperCase()}${type.slice(1)}`]; if (!button) continue;
       const reason = buildLockReason(type, hex); button.disabled = Boolean(reason); button.dataset.cost = String(cost); button.dataset.lockReason = reason || ""; button.title = reason || `${coordinate}${buildingName(type)} 건설 가능`;
@@ -1106,8 +1127,7 @@
     if (!state.paused) { lastFrame = performance.now(); canvas.focus(); }
   }
 
-  function terrainName(type) { return { plain: "평원", crater: "분화구", ridge: "능선", dunes: "사구", wall: "장벽" }[type] || type; }
-  function resourceName(type) { return { ore: "광맥", core: "동력핵", ruins: "유적", garden: "생명정원" }[type] || type; }
+  function terrainName(type) { return { plain: "평원", mountain: "산맥" }[type] || type; }
   function buildingName(type) { return { command: "지휘 수도", ruined: "폐허 수도", outpost: "전초기지", tower: "방어탑", factory: "군수공장", lab: "연구소", silo: "미사일 사일로" }[type] || type; }
   function buildingColor(type) { return { command: "#f4d35e", ruined: "#55616a", outpost: "#42d9c8", tower: "#72ef9f", factory: "#ff9f43", lab: "#b58cff", silo: "#ff6b6b" }[type] || "#63e6ff"; }
 
@@ -1157,8 +1177,8 @@
 
   function drawTile(hex) {
     if (!hex.discovered) { drawHex(hex, "#050b10", "#111c23", 1); return; }
-    const terrainColor = { plain: "#173746", crater: "#25313c", ridge: "#293f4c", dunes: "#394235", wall: "#080d12" }[hex.terrain];
-    const ownedColor = { plain: "#173f4a", crater: "#284552", ridge: "#244c55", dunes: "#354d43", wall: "#080d12" }[hex.terrain];
+    const terrainColor = { plain: "#173746", mountain: "#090e13" }[hex.terrain];
+    const ownedColor = { plain: "#173f4a", mountain: "#090e13" }[hex.terrain];
     const civ = state.enemyCivs.find((item) => item.id === hex.enemyCiv);
     ctx.globalAlpha = hex.visible ? 1 : 0.38;
     const claimable = Boolean(claimBaseFor(hex)); const settlementCandidate = state.settlementKits > 0 && Boolean(settlementSourceFor(hex)); const selected = state.selectedKey === hex.key;
@@ -1166,9 +1186,8 @@
       selected || settlementCandidate ? "#f4d35e" : hex.captured ? "#63e6ff" : hex.enemyCiv ? civ?.color : claimable ? "#42d9c8" : "#294554",
       selected ? 4 : settlementCandidate ? 3 : hex.captured || hex.enemyCiv ? 2.4 : claimable ? 1.7 : 1);
     const center = axialToWorld(hex.q, hex.r);
-    ctx.save(); ctx.globalAlpha *= hex.terrain === "wall" ? 0.8 : 0.34; ctx.fillStyle = hex.captured ? "#9ffcff" : hex.enemyCiv ? civ?.color || "#ef476f" : "#a7bac4"; ctx.font = "800 18px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText({ plain: "·", ridge: "▲", crater: "○", dunes: "≈", wall: "▰" }[hex.terrain], center.x, center.y + 2); ctx.restore();
+    ctx.save(); ctx.globalAlpha *= hex.terrain === "mountain" ? 0.88 : 0.34; ctx.fillStyle = hex.captured ? "#9ffcff" : hex.enemyCiv ? civ?.color || "#ef476f" : "#a7bac4"; ctx.font = "800 18px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText({ plain: "·", mountain: "▲" }[hex.terrain], center.x, center.y + 2); ctx.restore();
     if (hex.supply) { ctx.fillStyle = { augment: "#ffcf5a", med: "#72ef9f", science: "#c8a8ff", industry: "#ff9f43" }[hex.supply]; ctx.font = "900 14px sans-serif"; ctx.textAlign = "center"; ctx.fillText({ augment: "A", med: "+", science: "Σ", industry: "I" }[hex.supply], center.x - 20, center.y - 17); }
-    if (hex.resource) { ctx.fillStyle = { ore: "#f5b95f", core: "#63e6ff", ruins: "#c8a8ff", garden: "#72ef9f" }[hex.resource]; ctx.font = "800 13px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText({ ore: "◆", core: "◈", ruins: "✦", garden: "●" }[hex.resource], center.x + 20, center.y - 17); }
     if (hex.building) { ctx.fillStyle = buildingColor(hex.building); ctx.beginPath(); ctx.arc(center.x, center.y, hex.building === "command" ? 15 : 10, 0, TAU); ctx.fill(); ctx.fillStyle = "#07131c"; ctx.font = "800 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText({ command: "HQ", ruined: "X", outpost: "O", tower: "T", factory: "F", lab: "L", silo: "S" }[hex.building], center.x, center.y + 1); if (hex.baseLevel) { ctx.fillStyle = "#eaffff"; ctx.font = "800 10px sans-serif"; ctx.fillText(`Lv.${hex.baseLevel}`, center.x, center.y + 25); ctx.fillStyle = "#101820"; ctx.fillRect(center.x - 20, center.y + 31, 40, 4); ctx.fillStyle = hex.defenseClock > 0 ? "#ff6b6b" : "#72ef9f"; ctx.fillRect(center.x - 20, center.y + 31, 40 * Math.max(0, hex.baseHp / hex.baseMaxHp), 4); } }
     if (hex.enemyStructure) drawEnemyStructure(hex, civ, center);
     ctx.globalAlpha = 1;
@@ -1202,6 +1221,7 @@
   }
 
   function drawExpansion() {
+    for (const command of liveCommands()) { const target = command.expansionTargetKey && state.hexByKey.get(command.expansionTargetKey); if (!target?.discovered) continue; const point = axialToWorld(target.q, target.r); const duration = command.capitalExpansionDuration || commandExpansionInterval(command); const progress = Math.max(0, Math.min(1, 1 - command.capitalExpansionClock / duration)); ctx.strokeStyle = "#f4d35e"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(point.x, point.y, view.hexSize * 0.55, -Math.PI / 2, -Math.PI / 2 + TAU * progress); ctx.stroke(); }
     for (const civ of state.enemyCivs) {
       const target = civ.expansionTarget && state.hexByKey.get(civ.expansionTarget); if (!target?.discovered) continue;
       const point = axialToWorld(target.q, target.r); ctx.strokeStyle = civ.color; ctx.globalAlpha = target.visible ? 0.8 : 0.3;
@@ -1235,8 +1255,9 @@
     if (ui.militaryProgress) ui.militaryProgress.textContent = `${3 - livingCapitals} / 3`;
     const shipBuildSeconds = state.techs.orbital_engineering ? 15 : 20; const shipLaunchSeconds = state.techs.orbital_engineering ? 35 : 45;
     if (ui.scienceProgress) ui.scienceProgress.textContent = state.ship ? state.ship.phase === "launch" ? `발사 방어 ${Math.floor(state.ship.progress)} / ${shipLaunchSeconds}초` : `우주선 ${state.ship.stage} / 3` : state.techs.aerospace ? "우주기지 선택" : "우주항법 연구 필요";
-    if (ui.expansion) ui.expansion.textContent = liveCommands().length ? `수도 ${liveCommands().length} · 자동 확장` : "수도 붕괴";
-    const tile = currentBuildTile(); if (ui.terrain) ui.terrain.textContent = tile ? `${terrainName(tile.terrain)} · ${terrainModifiers(tile).label}${tile.resource ? ` · ${resourceName(tile.resource)}` : ""}` : "지도 밖";
+    const expansionCommand = liveCommands().filter((command) => command.expansionTargetKey).sort((a, b) => a.capitalExpansionClock - b.capitalExpansionClock)[0];
+    if (ui.expansion) ui.expansion.textContent = expansionCommand ? `자동 확장 ${expansionCommand.expansionTargetKey} · ${Math.max(0, Math.ceil(expansionCommand.capitalExpansionClock))}초` : liveCommands().length ? `수도 ${liveCommands().length} · 확장 목표 탐색` : "수도 붕괴";
+    const tile = currentBuildTile(); if (ui.terrain) ui.terrain.textContent = tile ? `${terrainName(tile.terrain)} · ${terrainModifiers(tile).label}` : "지도 밖";
     if (ui.arsenal) ui.arsenal.textContent = ["Pulse", "Orbital", p.chainLevel && `Chain Lv.${p.chainLevel}`, p.mineLevel && `Mine Lv.${p.mineLevel}`, buildingCount("factory") && "Scatter", buildingCount("lab") && "Rail", buildingCount("silo") && "Missile"].filter(Boolean).join(" / ");
     const orderHex = state.activeOrder && state.hexByKey.get(state.activeOrder.key);
     const orderDuration = state.activeOrder?.type === "siege" ? SIEGE_STAGE_SECONDS : claimStageDuration(orderHex);
@@ -1245,10 +1266,10 @@
     if (ui.captureLabel) ui.captureLabel.textContent = state.activeOrder ? `${state.activeOrder.type === "siege" ? "수도 공성" : "개척"} ${state.activeOrder.stage + 1}/3 · ${Math.floor(capturePercent)}%` : "강조된 헥스를 클릭해 명령하세요";
     const selected = state.hexByKey.get(state.selectedKey);
     if (ui.selectedTile) ui.selectedTile.textContent = selected ? `${selected.q}, ${selected.r} · ${selected.captured ? "아군 영토" : selected.enemyCiv ? "적 영토" : "중립"}` : "선택 없음";
-    if (ui.selectedAction) { const turret = selected?.baseLevel ? baseTurretStats(selected.baseLevel) : null; const baseCost = baseFoundCost(); ui.selectedAction.textContent = !selected ? "지도에서 헥스를 선택하세요" : selected.enemyStructure?.breached ? siegeBaseFor(selected) ? "수도 공성 가능" : "거점 영향권 밖" : settlementSourceFor(selected) ? state.settlementKits ? "정착 키트로 새 수도 건설" : `새 수도 후보 · 키트 필요 (산업 ${settlementKitCost()})` : selected.terrain === "wall" ? "장벽 · 이동/건설 불가" : selected.captured && !selected.building ? state.production >= baseCost ? "새 거점 설립 가능" : `새 거점 · 산업력 ${baseCost} 필요 (${Math.floor(state.production)} / ${baseCost})` : selected.baseLevel ? `거점 Lv.${selected.baseLevel} · HP ${Math.ceil(selected.baseHp)}/${selected.baseMaxHp} · 포탑 ${Math.round(turret.damage)}DMG/${(turret.range / view.hexSize).toFixed(1)}H/${turret.rate.toFixed(1)}s${selected.defenseClock > 0 ? " · 방어 중" : ""}` : "명령 없음"; }
+    if (ui.selectedAction) { const turret = selected?.baseLevel ? baseTurretStats(selected.baseLevel, selected.building) : null; const baseCost = baseFoundCost(); ui.selectedAction.textContent = !selected ? "지도에서 헥스를 선택하세요" : selected.enemyStructure?.breached ? siegeBaseFor(selected) ? "수도 공성 가능" : "거점 영향권 밖" : settlementSourceFor(selected) ? state.settlementKits ? "정착 키트로 새 수도 건설" : `새 수도 후보 · 키트 필요 (산업 ${settlementKitCost()})` : selected.terrain === "mountain" ? "산맥 · 이동/건설 불가" : selected.captured && !selected.building ? state.production >= baseCost ? "새 거점 설립 가능" : `새 거점 · 산업력 ${baseCost} 필요 (${Math.floor(state.production)} / ${baseCost})` : selected.baseLevel ? `거점 Lv.${selected.baseLevel} · HP ${Math.ceil(selected.baseHp)}/${selected.baseMaxHp} · 포탑 ${Math.round(turret.damage)}DMG/${(turret.range / view.hexSize).toFixed(1)}H/${turret.rate.toFixed(1)}s${selected.defenseClock > 0 ? " · 방어 중" : ""}` : "명령 없음"; }
     if (ui.defenseStatus) { const assaultUnits = state.assault ? state.enemies.filter((enemy) => enemy.assaultId === state.assault.id).length : 0; ui.defenseStatus.textContent = state.tutorial && !state.tutorial.complete ? "훈련 중 · 대공세 대기" : state.assault ? `공세 진행 · ${state.assault.targetKey} · 잔여 ${assaultUnits}` : `다음 공세 ${Math.max(0, Math.ceil(state.assaultClock))}초`; }
     if (ui.capitalCycle) ui.capitalCycle.textContent = `수도 산업 +${Math.round(capitalProductionYield())} (${Math.ceil(state.capitalProductionClock)}초) · 과학 +${Math.round(capitalScienceYield())} (${Math.ceil(state.capitalScienceClock)}초)`;
-    if (ui.settlementKitValue) ui.settlementKitValue.textContent = state.settlementKits; if (ui.settlementKitButton) { ui.settlementKitButton.disabled = state.production < settlementKitCost(); ui.settlementKitButton.dataset.cost = String(settlementKitCost()); ui.settlementKitButton.textContent = `거점 키트 구매 · ${settlementKitCost()}`; }
+    if (ui.settlementKitValue) ui.settlementKitValue.textContent = state.settlementKits; if (ui.settlementKitButton) { ui.settlementKitButton.disabled = state.production < settlementKitCost(); ui.settlementKitButton.dataset.cost = String(settlementKitCost()); const label = ui.settlementKitButton.querySelector("[data-button-label], span"); if (label) label.textContent = `거점 키트 구매 · ${settlementKitCost()}`; else ui.settlementKitButton.textContent = `거점 키트 구매 · ${settlementKitCost()}`; }
     if (ui.supplyStatus) ui.supplyStatus.textContent = state.lastSupply ? `최근 보급: ${{ augment: "증강", med: "의료", science: "과학", industry: "산업" }[state.lastSupply]}` : `미수집 보급 ${state.hexes.filter((hex) => hex.supply).length}`;
     if (ui.foundBase) ui.foundBase.disabled = !selected?.captured || Boolean(selected.building) || state.production < baseFoundCost();
     if (ui.shipButton) ui.shipButton.disabled = !state.techs.aerospace || Boolean(state.ship) || !selected?.captured || selected.baseLevel < 3 || state.production < 90;
@@ -1284,13 +1305,14 @@
       science: Number(state.science.toFixed(1)), scienceRate: Number(state.scienceRate.toFixed(2)), buildings: Object.freeze(counts),
       settlementKits: state.settlementKits, settlementKitCost: settlementKitCost(), hostileDamageScale: Number(hostileDamageScale().toFixed(2)),
       settlementCandidates: Object.freeze(state.hexes.filter((hex) => settlementSourceFor(hex)).map((hex) => hex.key)),
-      commands: Object.freeze(state.hexes.filter((hex) => hex.building === "command" || hex.building === "ruined").map((hex) => Object.freeze({ key: hex.key, active: hex.building === "command" && hex.baseHp > 0, hp: Number(hex.baseHp.toFixed(1)), maxHp: hex.baseMaxHp, expansionIn: Number((hex.capitalExpansionClock || 0).toFixed(1)) }))),
+      commands: Object.freeze(state.hexes.filter((hex) => hex.building === "command" || hex.building === "ruined").map((hex) => { const duration = hex.capitalExpansionDuration || 0; return Object.freeze({ key: hex.key, active: hex.building === "command" && hex.baseHp > 0, hp: Number(hex.baseHp.toFixed(1)), maxHp: hex.baseMaxHp,
+        expansionTargetKey: hex.expansionTargetKey || null, expansionIn: Number((hex.capitalExpansionClock || 0).toFixed(1)), expansionDuration: Number(duration.toFixed(1)), expansionProgress: duration ? Number(Math.max(0, Math.min(1, 1 - hex.capitalExpansionClock / duration)).toFixed(3)) : 0 }); })),
       supplies: Object.freeze(state.hexes.filter((hex) => hex.supply).map((hex) => Object.freeze({ key: hex.key, type: hex.supply }))), supplyCollected: Object.freeze({ ...state.supplyCollected }), lastSupply: state.lastSupply,
       capitalCycle: Object.freeze({ productionIn: Number(state.capitalProductionClock.toFixed(2)), scienceIn: Number(state.capitalScienceClock.toFixed(2)),
         productionYield: Number(capitalProductionYield().toFixed(1)), scienceYield: Number(capitalScienceYield().toFixed(1)),
         productionPulses: state.capitalProductionPulses, sciencePulses: state.capitalSciencePulses }),
       terrainCounts: Object.freeze(Object.fromEntries(Object.keys(TERRAIN_MODIFIERS).map((type) => [type, state.hexes.filter((hex) => hex.terrain === type).length]))),
-      wallKeys: Object.freeze(state.hexes.filter((hex) => hex.terrain === "wall").map((hex) => hex.key)),
+      mountainKeys: Object.freeze(state.hexes.filter((hex) => hex.terrain === "mountain").map((hex) => hex.key)),
       enemyCivs: Object.freeze(state.enemyCivs.map((civ) => { const capital = state.hexByKey.get(`${civ.q},${civ.r}`)?.enemyStructure; const guardiansRemaining = enemyStructures(civ.id).filter((hex) => hex.enemyStructure.type !== "capital").length; return Object.freeze({ id: civ.id, defeated: civ.defeated, capital: `${civ.q},${civ.r}`, expansionTarget: civ.expansionTarget, guardiansRemaining, shielded: Boolean(capital && guardiansRemaining), breached: Boolean(capital?.breached) }); })),
       enemyCapitals: state.enemyCivs.filter((civ) => !civ.defeated).length, enemyTerritory: state.hexes.filter((hex) => hex.enemyCiv).length,
       neutralizedEnemyTiles: Object.freeze(state.hexes.filter((hex) => hex.enemyNeutralized && !hex.captured).map((hex) => hex.key)),
@@ -1317,14 +1339,14 @@
       selectedKey: state.selectedKey,
       activeOrder: state.activeOrder ? Object.freeze({ type: state.activeOrder.type, key: state.activeOrder.key, baseKey: state.activeOrder.baseKey,
         stage: state.activeOrder.stage, progress: Number(state.activeOrder.progress.toFixed(2)), funded: Boolean(state.hexByKey.get(state.activeOrder.key)?.claimFunded) }) : null,
-      bases: Object.freeze(playerBases().map((base) => { const turret = baseTurretStats(base.baseLevel); return Object.freeze({ key: base.key, type: base.building, level: base.baseLevel, growth: Number(base.baseGrowth.toFixed(2)), growthThreshold: base.baseLevel < 3 && base.building !== "tower" ? baseGrowthThreshold(base.baseLevel) : null, radius: baseClaimRadius(base),
+      bases: Object.freeze(playerBases().map((base) => { const turret = baseTurretStats(base.baseLevel, base.building); return Object.freeze({ key: base.key, type: base.building, level: base.baseLevel, growth: Number(base.baseGrowth.toFixed(2)), growthThreshold: base.baseLevel < 3 && base.building !== "tower" ? baseGrowthThreshold(base.baseLevel) : null, radius: baseClaimRadius(base),
         hp: Number(base.baseHp.toFixed(1)), maxHp: base.baseMaxHp, defending: base.defenseClock > 0,
         turret: Object.freeze({ range: Number(turret.range.toFixed(1)), damage: turret.damage, rate: Number(turret.rate.toFixed(2)) }) }); })),
       assault: state.assault ? Object.freeze({ ...state.assault, remaining: state.enemies.filter((enemy) => enemy.assaultId === state.assault.id).length }) : null,
       assaultClock: Number(state.assaultClock.toFixed(1)),
       claims: Object.freeze(state.hexes.filter((hex) => hex.claimStage > 0 || hex.claimFunded).map((hex) => Object.freeze({ key: hex.key, stage: hex.claimStage, progress: Number(hex.claimProgress.toFixed(2)), funded: hex.claimFunded }))),
       claimCandidates: Object.freeze(state.hexes.map((hex) => ({ hex, base: claimBaseFor(hex) })).filter((item) => item.base).map(({ hex, base }) => Object.freeze({ key: hex.key,
-        baseKey: base.key, terrain: hex.terrain, resource: hex.resource, stageSeconds: Number(claimStageDuration(hex).toFixed(2)), suitability: claimSuitability(hex, base), effect: terrainModifiers(hex).label,
+        baseKey: base.key, terrain: hex.terrain, stageSeconds: Number(claimStageDuration(hex).toFixed(2)), suitability: claimSuitability(hex, base), effect: terrainModifiers(hex).label,
         funded: hex.claimFunded, cost: hex.claimFunded ? 0 : claimCost(), requiredReserve: hex.claimFunded ? 0 : claimReserve(), locked: Boolean(claimLockReason(hex)), reason: claimLockReason(hex) }))),
       techs: Object.freeze({ ...state.techs }), techInfo: Object.freeze(Object.values(TECHS).map((tech) => Object.freeze({ id: tech.id, title: tech.title, text: tech.text, cost: tech.cost,
         requires: tech.requires, researched: state.techs[tech.id], locked: Boolean(techLockReason(tech.id)), reason: techLockReason(tech.id) }))),
@@ -1346,13 +1368,13 @@
   function debugApplyAugment(id) { const applied = applyAugment(id); if (applied) { state.choosing = false; state.augmentChoices = []; setOverlay(ui.augment, false); } updateHud(); return applied; }
   function debugGrantResources(production = 0, science = 0) { state.production += Math.max(0, Number(production) || 0); state.science += Math.max(0, Number(science) || 0); updateHud(); return snapshot(); }
   function debugSetPlayerTile(key) { const hex = state.hexByKey.get(key); if (!hex) return false; const point = axialToWorld(hex.q, hex.r); state.player.x = point.x; state.player.y = point.y; return true; }
-  function debugSetEnemyTile(id, key) { const enemy = state.enemies.find((item) => item.id === id); const hex = state.hexByKey.get(key); if (!enemy || !hex || hex.terrain === "wall") return false; const point = axialToWorld(hex.q, hex.r); enemy.x = point.x; enemy.y = point.y; enemy.pathKeys = []; enemy.pathTargetKey = null; return true; }
+  function debugSetEnemyTile(id, key) { const enemy = state.enemies.find((item) => item.id === id); const hex = state.hexByKey.get(key); if (!enemy || !hex || hex.terrain === "mountain") return false; const point = axialToWorld(hex.q, hex.r); enemy.x = point.x; enemy.y = point.y; enemy.pathKeys = []; enemy.pathTargetKey = null; return true; }
   function debugPathfind(startKey, goalKey) { return Object.freeze(findPassablePath(state.hexByKey.get(startKey), state.hexByKey.get(goalKey))); }
   function debugDamageBase(key, amount = 9999) { const base = state.hexByKey.get(key); if (!base?.baseLevel) return false; damageBase(base, Math.max(0, Number(amount) || 0)); updateHud(); return true; }
   function debugCollectSupply(key) { return collectSupply(state.hexByKey.get(key)); }
   function debugResolveAssault(success = true) { if (!state.assault) return false; if (success) { const id = state.assault.id; state.enemies = state.enemies.filter((enemy) => enemy.assaultId !== id); completeAssault(); } else damageBase(state.hexByKey.get(state.assault.targetKey), 99999); updateHud(); return true; }
   function debugClaimInfo(key) { const hex = state.hexByKey.get(key); const base = claimBaseFor(hex); return hex && base ? Object.freeze({ key, baseKey: base.key, terrain: hex.terrain,
-    resource: hex.resource, stageSeconds: claimStageDuration(hex), suitability: claimSuitability(hex, base), funded: hex.claimFunded,
+    stageSeconds: claimStageDuration(hex), suitability: claimSuitability(hex, base), funded: hex.claimFunded,
     cost: hex.claimFunded ? 0 : claimCost(), requiredReserve: hex.claimFunded ? 0 : claimReserve(), locked: Boolean(claimLockReason(hex)), reason: claimLockReason(hex), modifiers: Object.freeze({ ...terrainModifiers(hex) }) }) : null; }
   function frame(now) { const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000)); lastFrame = now; update(dt); render(); animationFrame = requestAnimationFrame(frame); }
 

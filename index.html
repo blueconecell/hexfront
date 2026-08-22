@@ -40,10 +40,10 @@
         <div class="resource-chip settlement"><span>거점 키트</span><strong id="settlement-kit-value">0</strong></div>
       </div>
       <div class="top-actions">
-        <button id="tech-button" class="quiet-button research-trigger" type="button">연구 · R</button>
-        <button id="build-button" class="quiet-button build-trigger" type="button">건설</button>
-        <button id="intel-button" class="quiet-button intel-trigger" type="button">정보</button>
-        <button id="pause-button" class="quiet-button" type="button">일시정지</button>
+        <button id="tech-button" class="quiet-button research-trigger icon-label" type="button" aria-label="연구 트리 열기"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"></path></svg><span>연구 · R</span></button>
+        <button id="build-button" class="quiet-button build-trigger icon-label" type="button" aria-label="건설 메뉴 열기"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 12-8.5 8.5a2.12 2.12 0 0 1-3-3L12 9"></path><path d="M17.6 15 22 10.6"></path><path d="m8 2 4 4-2 2-4-4Z"></path><path d="m18 12 4 4"></path></svg><span>건설</span></button>
+        <button id="intel-button" class="quiet-button intel-trigger icon-label" type="button" aria-label="전선 정보 열기"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 10v6"></path><path d="M12 7h.01"></path></svg><span>정보</span></button>
+        <button id="pause-button" class="quiet-button icon-label" type="button" aria-label="게임 일시정지"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14"></path><path d="M16 5v14"></path></svg><span>일시정지</span></button>
       </div>
     </header>
     <div id="supply-status" class="supply-status" aria-live="polite">보급 신호 탐색 중</div>
@@ -96,9 +96,9 @@
       <div class="meter capture"><i id="capture-fill"></i></div>
       <div class="selection-line"><span id="selected-tile-value">선택 없음</span><strong id="selected-action-value">명령 대기</strong></div>
       <div class="selection-actions">
-        <button id="settlement-kit-button" class="kit-purchase" type="button">거점 키트 구매 · 120</button>
-        <button id="found-base-button" type="button" disabled>거점 배치 · 키트 필요</button>
-        <button id="ship-button" type="button" disabled>우주선 건조 · 90</button>
+        <button id="settlement-kit-button" class="kit-purchase icon-label" type="button"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 4.27 9 5.15"></path><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg><span>거점 키트 구매 · 120</span></button>
+        <button id="found-base-button" class="icon-label" type="button" disabled><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4"></path><path d="M5 4h11l-1 4 1 4H5"></path></svg><span>거점 배치 · 키트 필요</span></button>
+        <button id="ship-button" class="icon-label" type="button" disabled><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09Z"></path><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.87 12.87 0 0 1 22 2c0 2.72-.78 7.5-6.05 11a22.35 22.35 0 0 1-3.95 2Z"></path><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path></svg><span>우주선 건조 · 90</span></button>
       </div>
       <p class="settlement-kit-hint">키트 구매 후 아군 수도에서 4~5칸 떨어진 중립지를 선택해 배치하십시오.</p>
     </section>
@@ -214,45 +214,41 @@
             <li><i class="key-hex selected"></i><span><strong>선택</strong><small>노란색 외곽선</small></span></li>
           </ul>
         </section>
-        <section aria-labelledby="legend-terrain-title">
-          <h3 id="legend-terrain-title">지형 기호</h3>
-          <ul class="legend-list glyph-list">
-            <li><i>·</i><span><strong>평원</strong><small>표준 이동·개척</small></span></li>
-            <li><i>▲</i><span><strong>능선</strong><small>방어·시야 유리</small></span></li>
-            <li><i>○</i><span><strong>분화구</strong><small>산업 생산 보너스</small></span></li>
-            <li><i>≈</i><span><strong>사구</strong><small>이동·개척 지연</small></span></li>
-            <li><i class="wall">▰</i><span><strong>장벽</strong><small>기체와 유닛 통과 불가</small></span></li>
-          </ul>
-        </section>
         <section aria-labelledby="legend-supply-title">
           <h3 id="legend-supply-title">현장 보급</h3>
-          <ul class="legend-list glyph-list supply-list">
-            <li><i class="industry">I</i><span><strong>산업 보급</strong><small>즉시 산업력 획득</small></span></li>
-            <li><i class="science">Σ</i><span><strong>연구 보급</strong><small>즉시 과학 획득</small></span></li>
-            <li><i class="repair">+</i><span><strong>수복 보급</strong><small>기체 내구도 회복</small></span></li>
-            <li><i class="combat">A</i><span><strong>증강 보급</strong><small>전투 증강 선택 즉시 개방</small></span></li>
+          <ul class="legend-list supply-list">
+            <li><svg class="ui-icon industry" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 22V10l6 4v-4l6 4V2h4v20Z"></path><path d="M4 18h16"></path></svg><span><strong>산업 보급</strong><small>즉시 산업력 획득</small></span></li>
+            <li><svg class="ui-icon science" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6"></path><path d="M10 9V3h4v6l5 8.5A2.3 2.3 0 0 1 17 21H7a2.3 2.3 0 0 1-2-3.5Z"></path><path d="M7 16h10"></path></svg><span><strong>연구 보급</strong><small>즉시 과학 획득</small></span></li>
+            <li><svg class="ui-icon repair" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20"></path><path d="M2 12h20"></path></svg><span><strong>수복 보급</strong><small>기체 내구도 회복</small></span></li>
+            <li><svg class="ui-icon combat" viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-2 8h6l-8 12 2-8H5Z"></path></svg><span><strong>증강 보급</strong><small>전투 증강 선택 즉시 개방</small></span></li>
           </ul>
         </section>
-        <section aria-labelledby="legend-resource-title">
-          <h3 id="legend-resource-title">자원 기호</h3>
-          <ul class="legend-list glyph-list resources">
-            <li><i>◆</i><span><strong>광맥</strong><small>산업 생산 강화</small></span></li>
-            <li><i>◈</i><span><strong>동력핵</strong><small>전투 시설 강화</small></span></li>
-            <li><i>✦</i><span><strong>유적</strong><small>과학 생산 강화</small></span></li>
-            <li><i>●</i><span><strong>생명정원</strong><small>도시 방어 보조</small></span></li>
+        <section aria-labelledby="legend-battlefield-title">
+          <h3 id="legend-battlefield-title">전장 구조</h3>
+          <ul class="legend-list battlefield-list">
+            <li><svg class="ui-icon terrain" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5 8 4l8 2.5L21 4v13.5L16 20l-8-2.5L3 20Z"></path><path d="M8 4v13.5"></path><path d="M16 6.5V20"></path></svg><span><strong>기본 평지</strong><small>동일한 이동·전투 규칙</small></span></li>
+            <li><svg class="ui-icon mountain" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 20 7-12 4 6 2-3 5 9Z"></path><path d="m8.5 10.5 2.5 2 1.5-1"></path></svg><span><strong>연결 산맥</strong><small>통과·개척할 수 없는 장벽</small></span></li>
+          </ul>
+        </section>
+        <section aria-labelledby="legend-capital-title">
+          <h3 id="legend-capital-title">수도권 운용</h3>
+          <ul class="legend-list capital-list">
+            <li><svg class="ui-icon expand" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="m3 3 5 5"></path><path d="M16 3h3a2 2 0 0 1 2 2v3"></path><path d="m21 3-5 5"></path><path d="M8 21H5a2 2 0 0 1-2-2v-3"></path><path d="m3 21 5-5"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path><path d="m21 21-5-5"></path></svg><span><strong>자동 확장 목표</strong><small>건강한 수도가 중립지를 편입</small></span></li>
+            <li><svg class="ui-icon ring" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 8.66 5v10L12 22l-8.66-5V7Z"></path><circle cx="12" cy="12" r="3"></circle></svg><span><strong>수도 1링</strong><small>수도 건설 즉시 확보되는 방어권</small></span></li>
+            <li><svg class="ui-icon turret" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21h16"></path><path d="M7 21v-5h10v5"></path><path d="M9 16V9h6v7"></path><path d="M12 9V4"></path><path d="m12 4 7 2"></path></svg><span><strong>강한 수도 포탑</strong><small>장거리 자동 사격으로 수도권 방어</small></span></li>
           </ul>
         </section>
         <section aria-labelledby="legend-building-title">
           <h3 id="legend-building-title">시설 기호</h3>
           <ul class="legend-list building-list">
-            <li><i>HQ</i><span><strong>수도</strong><small>문명의 중심</small></span></li>
-            <li><i>O</i><span><strong>전초기지</strong><small>국경 자동 확장</small></span></li>
-            <li><i>T</i><span><strong>방어 타워</strong><small>침공군 자동 추적</small></span></li>
-            <li><i>F</i><span><strong>군수공장</strong><small>산업·산탄 포격</small></span></li>
-            <li><i>L</i><span><strong>연구소</strong><small>과학·레일 포격</small></span></li>
-            <li><i>S</i><span><strong>사일로</strong><small>유도탄 발사</small></span></li>
-            <li><i class="enemy">F</i><span><strong>적 생산기지</strong><small>침공군 생산</small></span></li>
-            <li><i class="enemy">G</i><span><strong>적 수호시설</strong><small>수도 보호막 유지</small></span></li>
+            <li><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18"></path><path d="M5 21V9l7-5 7 5v12"></path><path d="M9 21v-6h6v6"></path></svg><span><strong>수도</strong><small>지도 HQ · 문명의 중심</small></span></li>
+            <li><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4"></path><path d="M5 4h11l-1 4 1 4H5"></path></svg><span><strong>전초기지</strong><small>지도 O · 국경 자동 확장</small></span></li>
+            <li><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21h16"></path><path d="M7 21v-5h10v5"></path><path d="M9 16V9h6v7"></path><path d="M12 9V4"></path></svg><span><strong>방어 타워</strong><small>지도 T · 침공군 자동 추적</small></span></li>
+            <li><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 22V10l6 4v-4l6 4V2h4v20Z"></path></svg><span><strong>군수공장</strong><small>지도 F · 산업·산탄 포격</small></span></li>
+            <li><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6"></path><path d="M10 9V3h4v6l5 8.5A2.3 2.3 0 0 1 17 21H7a2.3 2.3 0 0 1-2-3.5Z"></path></svg><span><strong>연구소</strong><small>지도 L · 과학·레일 포격</small></span></li>
+            <li><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3 5v10l-3 5-3-5V7Z"></path><path d="M9 13H5l-2 4h6"></path><path d="M15 13h4l2 4h-6"></path></svg><span><strong>사일로</strong><small>지도 S · 유도탄 발사</small></span></li>
+            <li><svg class="ui-icon enemy" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18"></path><path d="M5 21V8l3 2 4-4 4 4 3-2v13"></path><path d="M9 21v-5h6v5"></path></svg><span><strong>적 생산기지</strong><small>지도 F · 침공군 생산</small></span></li>
+            <li><svg class="ui-icon enemy" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3Z"></path><path d="M9 12h6"></path><path d="M12 9v6"></path></svg><span><strong>적 수호시설</strong><small>지도 G · 수도 보호막 유지</small></span></li>
           </ul>
         </section>
       </div>
@@ -277,18 +273,23 @@
       <p id="build-tile-info" class="build-tile-info">점령한 빈 타일 위에서 건설할 수 있습니다.</p>
       <div class="build-options">
         <button id="build-tower" class="build-card tower" type="button">
+          <svg class="ui-icon card-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21h16"></path><path d="M7 21v-5h10v5"></path><path d="M9 16V9h6v7"></path><path d="M12 9V4"></path><path d="m12 4 7 2"></path></svg>
           <span>35 산업력</span><strong>방어 타워</strong><small>주변 침공군을 자동 추적하는 고정 방어포를 설치합니다.</small>
         </button>
         <button id="build-outpost" class="build-card outpost" type="button">
+          <svg class="ui-icon card-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4"></path><path d="M5 4h11l-1 4 1 4H5"></path></svg>
           <span>30 산업력</span><strong>전초기지</strong><small>인접 국경을 주기적으로 자동 점령합니다.</small>
         </button>
         <button id="build-factory" class="build-card factory" type="button">
+          <svg class="ui-icon card-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 22V10l6 4v-4l6 4V2h4v20Z"></path><path d="M4 18h16"></path></svg>
           <span>40 산업력</span><strong>군수공장</strong><small>생산량을 늘리고 산탄 보조포를 장착합니다.</small>
         </button>
         <button id="build-lab" class="build-card lab" type="button">
+          <svg class="ui-icon card-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6"></path><path d="M10 9V3h4v6l5 8.5A2.3 2.3 0 0 1 17 21H7a2.3 2.3 0 0 1-2-3.5Z"></path><path d="M7 16h10"></path></svg>
           <span>45 산업력</span><strong>연구소</strong><small>과학을 생산하고 관통력이 높은 자동 레일 포격을 가동합니다.</small>
         </button>
         <button id="build-silo" class="build-card silo" type="button">
+          <svg class="ui-icon card-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3 5v10l-3 5-3-5V7Z"></path><path d="M9 13H5l-2 4h6"></path><path d="M15 13h4l2 4h-6"></path></svg>
           <span>55 산업력</span><strong>미사일 사일로</strong><small>적을 추적해 폭발하는 유도탄을 발사합니다.</small>
         </button>
       </div>
@@ -301,7 +302,9 @@
       <p class="eyebrow">SCIENCE TREE</p>
       <h2 id="tech-title">문명의 기준을 연구하십시오.</h2>
       <p class="build-tile-info">과학을 소비해 개척, 거점 성장, 적 도시 공성, 우주 탈출 계획을 해금합니다.</p>
-      <div id="tech-options" class="tech-options" aria-label="연구 기술 목록"></div>
+      <div class="tech-scroll-region" tabindex="0" aria-label="연구 트리 스크롤 영역">
+        <div id="tech-options" class="tech-options" aria-label="연구 기술 목록"></div>
+      </div>
       <button id="tech-close" class="quiet-button build-cancel" type="button">연구 닫기</button>
     </div>
   </section>
