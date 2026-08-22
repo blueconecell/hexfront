@@ -18,27 +18,50 @@
     selectedTile: $("selected-tile-value"), selectedAction: $("selected-action-value"),
     foundBase: $("found-base-button"), shipButton: $("ship-button"), shipStatus: $("ship-status"),
     defenseStatus: $("defense-status"), capitalCycle: $("capital-cycle-status"),
-    techButton: $("tech-button"), techOverlay: $("tech-overlay"), techFrontier: $("tech-frontier"),
-    techUrban: $("tech-urban"), techAerospace: $("tech-aerospace"), techSiege: $("tech-siege"), techClose: $("tech-close"),
+    techButton: $("tech-button"), techOverlay: $("tech-overlay"), techOptions: $("tech-options"), techClose: $("tech-close"),
     victoryTitle: $("victory-title"), victoryCopy: $("victory-copy"),
     augment: $("augment-overlay"), augmentOptions: $("augment-options"), pause: $("pause-overlay"),
     gameOver: $("game-over-overlay"), victory: $("victory-overlay"),
-    start: $("start-button"), restart: $("restart-button"), resume: $("resume-button"),
+    restart: $("restart-button"), resume: $("resume-button"),
     playAgain: $("play-again-button"), victoryRestart: $("victory-restart-button"),
     touchStick: $("touch-stick"), touchStickKnob: $("touch-stick-knob"), pauseButton: $("pause-button"),
     buildButton: $("build-button"), buildOverlay: $("build-overlay"), buildTileInfo: $("build-tile-info"),
     buildCancel: $("build-cancel"), buildOutpost: $("build-outpost"), buildFactory: $("build-factory"),
-    buildLab: $("build-lab"), buildSilo: $("build-silo")
+    buildLab: $("build-lab"), buildSilo: $("build-silo"),
+    modeNormal: $("mode-normal-button"), modeTutorial: $("mode-tutorial-button"), lobby: $("lobby-overlay"),
+    lobbyReturn: $("lobby-return-button"), victoryLobby: $("victory-lobby-button"), tutorialPanel: $("tutorial-panel"), tutorialStep: $("tutorial-step-value"),
+    tutorialTitle: $("tutorial-title"), tutorialCopy: $("tutorial-copy"), tutorialProgress: $("tutorial-progress-fill"),
+    legendButton: $("legend-button"), legendOverlay: $("legend-overlay"), legendClose: $("legend-close")
   };
 
   const TAU = Math.PI * 2;
-  const MAP_RADIUS = 12;
+  const MAP_RADIUS = 16;
   const WILD_CAP = 14;
   const CIV_UNIT_CAP = 30;
   const WILD_SPAWN_INTERVAL = 12;
   const CLAIM_STAGE_SECONDS = 10;
   const SIEGE_STAGE_SECONDS = 15;
-  const TECHS = Object.freeze({ frontier: 25, urban: 30, aerospace: 60, siege: 70 });
+  const TECHS = Object.freeze(Object.fromEntries([
+    ["frontier", 25, [], "개척학", "개척 명령과 영향권 +1"],
+    ["urban", 30, [], "도시계획", "거점 성장 시간 -25%"],
+    ["ballistics", 25, [], "탄도학", "거점 포탑 피해 +20%"],
+    ["research_network", 25, [], "연구망", "수도 과학 생산 +20%"],
+    ["logistics", 45, ["frontier"], "병참학", "개척 예비 산업 25, 투자 10"],
+    ["fortification", 50, ["urban"], "요새화", "거점이 받는 피해 -15%"],
+    ["siege", 70, ["ballistics", "frontier"], "공성공학", "적 구조물 피해 해금"],
+    ["aerospace", 60, ["research_network"], "우주항법", "우주선 제작 해금"],
+    ["colonial_admin", 75, ["logistics"], "식민행정", "개척 시간 -25%, 거점 비용 40"],
+    ["metropolitan", 80, ["fortification"], "대도시권", "성장 -20%, 수도 산업 +15%"],
+    ["guardian_analysis", 90, ["siege"], "수호자 분석", "구조물 피해 +25%"],
+    ["orbital_engineering", 100, ["aerospace"], "궤도공학", "우주선 단계 15초, 발사 35초"]
+  ].map(([id, cost, requires, title, text]) => [id, Object.freeze({ id, cost, requires: Object.freeze(requires), title, text })])));
+  const TUTORIAL_STEPS = Object.freeze([
+    { title: "기동 훈련", copy: "이동 스틱이나 WASD로 전장을 이동하세요." },
+    { title: "개척학 연구", copy: "기술 메뉴에서 개척학을 연구하세요." },
+    { title: "영토 확장", copy: "인접한 중립 헥스를 선택해 3단계 개척을 완료하세요." },
+    { title: "전초기지 설립", copy: "점령한 빈 헥스를 선택하고 새 거점을 세우세요." },
+    { title: "훈련 공세", copy: "접근하는 훈련 병력 4기를 자동 무기로 제거하세요." }
+  ]);
   const TERRAIN_MODIFIERS = Object.freeze({
     plain: { move: 1, claim: 1, defense: 1, vision: 0, industry: 0, label: "표준 지형" },
     ridge: { move: 0.92, claim: 1.05, defense: 0.82, vision: 1, industry: 0, label: "방어 -18% · 시야 +1" },
@@ -48,9 +71,9 @@
   const HEX_DIRECTIONS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
   const BUILDINGS = Object.freeze({ outpost: 30, factory: 40, lab: 45, silo: 55 });
   const ENEMY_CIVS = Object.freeze([
-    { id: "ember", name: "EMBER", color: "#ef476f", q: 10, r: 0, guardians: [[9, 0], [10, -1], [9, 1]] },
-    { id: "violet", name: "VIOLET", color: "#d16bff", q: -10, r: 10, guardians: [[-9, 9], [-10, 9], [-9, 10]] },
-    { id: "crimson", name: "CRIMSON", color: "#ff6b8a", q: 0, r: -10, guardians: [[0, -9], [1, -10], [-1, -9]] }
+    { id: "ember", name: "EMBER", color: "#ef476f", q: 14, r: 0, guardians: [[13, 0], [13, -1], [12, 1]] },
+    { id: "violet", name: "VIOLET", color: "#d16bff", q: -14, r: 14, guardians: [[-13, 13], [-13, 12], [-12, 13]] },
+    { id: "crimson", name: "CRIMSON", color: "#ff6b8a", q: 0, r: -14, guardians: [[0, -13], [1, -13], [-1, -12]] }
   ]);
   const keys = new Set();
   const pointer = { clientX: 0, clientY: 0, inside: false };
@@ -116,15 +139,16 @@
     }
   }
 
-  function freshState(running = true) {
+  function freshState(running = true, mode = "normal") {
     const hexes = makeHexes();
     const s = {
-      running, paused: !running, ended: false, choosing: false, menu: false, won: false, victoryType: null,
+      running, paused: !running, ended: false, choosing: false, menu: false, won: false, victoryType: null, mode,
       time: 0, selectedKey: null, activeOrder: null, assaultClock: 55, assaultId: 0, assault: null,
       capitalProductionClock: 10, capitalScienceClock: 15, capitalProductionPulses: 0, capitalSciencePulses: 0,
       kills: 0, production: 25, productionRate: 0, productionMultiplier: 1, expansionMultiplier: 1,
       science: 0, scienceRate: 0, scienceMultiplier: 1, enemyId: 0, wildSpawnClock: 8, wildSpawnIndex: 0,
-      augmentLevels: {}, augmentChoices: [], techs: { frontier: false, urban: false, aerospace: false, siege: false }, ship: null,
+      augmentLevels: {}, augmentChoices: [], techs: Object.fromEntries(Object.keys(TECHS).map((id) => [id, false])), ship: null,
+      tutorial: mode === "tutorial" ? { step: 0, complete: false, moved: 0, lastX: 0, lastY: 0, startTerritory: 1, startBases: 1, waveIds: [], waveStarted: false } : null,
       siegeLockMessageClock: 0,
       camera: { x: 0, y: 0 }, hexes, hexByKey: new Map(hexes.map((hex) => [hex.key, hex])),
       enemies: [], projectiles: [], enemyShots: [], particles: [], messages: [],
@@ -145,16 +169,27 @@
     node.classList.toggle("hidden", !visible);
   }
 
-  function reset(start = true) {
-    state = freshState(start); keys.clear(); clearTouchInput();
+  function reset(start = true, mode = state?.mode || "normal") {
+    state = freshState(start, mode); keys.clear(); clearTouchInput();
+    document.body.dataset.gameMode = mode;
     setOverlay(ui.augment, false); setOverlay(ui.pause, false); setOverlay(ui.gameOver, false);
-    setOverlay(ui.victory, false); setOverlay(ui.buildOverlay, false); setOverlay(ui.techOverlay, false);
+    setOverlay(ui.victory, false); setOverlay(ui.buildOverlay, false); setOverlay(ui.techOverlay, false); setOverlay(ui.legendOverlay, false);
+    setOverlay(ui.tutorialPanel, mode === "tutorial" && start); setOverlay(ui.lobby, !start);
     if (start) lastFrame = performance.now();
     updateHud(); return snapshot();
   }
 
-  function startGame() {
-    reset(true); setOverlay($("start-overlay"), false); canvas.focus();
+  function startGame(mode = state?.mode || "normal") {
+    const selectedMode = typeof mode === "string" ? mode : state?.mode || "normal";
+    reset(true, selectedMode === "tutorial" ? "tutorial" : "normal"); setOverlay(ui.lobby, false); canvas.focus();
+  }
+
+  function returnToLobby() {
+    state.running = false; state.paused = true; state.menu = false; keys.clear(); clearTouchInput();
+    delete document.body.dataset.gameMode;
+    setOverlay(ui.pause, false); setOverlay(ui.buildOverlay, false); setOverlay(ui.techOverlay, false); setOverlay(ui.legendOverlay, false);
+    setOverlay(ui.gameOver, false); setOverlay(ui.victory, false); setOverlay(ui.augment, false);
+    setOverlay(ui.tutorialPanel, false); setOverlay(ui.lobby, true); updateHud();
   }
 
   function resize() {
@@ -238,14 +273,14 @@
     const levelScale = 1 + (hq.baseLevel - 1) * 0.25;
     const terrain = state.hexes.filter((hex) => hex.captured).reduce((sum, hex) => sum + terrainModifiers(hex).industry, 0);
     const ore = state.hexes.filter((hex) => hex.captured && hex.resource === "ore").length;
-    return (12 * levelScale + terrain + ore * 2 + buildingCount("factory") * 5) * state.productionMultiplier;
+    return (12 * levelScale + terrain + ore * 2 + buildingCount("factory") * 5) * state.productionMultiplier * (state.techs.metropolitan ? 1.15 : 1);
   }
 
   function capitalScienceYield() {
     const ruins = state.hexes.filter((hex) => hex.captured && hex.resource === "ruins").length;
     const hq = state.hexes.find((hex) => hex.building === "command"); if (!hq) return 0;
     const levelScale = 1 + (hq.baseLevel - 1) * 0.25;
-    return (6 * levelScale + buildingCount("lab") * 3 + ruins * 2) * state.scienceMultiplier;
+    return (6 * levelScale + buildingCount("lab") * 3 + ruins * 2) * state.scienceMultiplier * (state.techs.research_network ? 1.2 : 1);
   }
 
   function productionRate() { return capitalProductionYield() / 10; }
@@ -258,10 +293,37 @@
     if (state.capitalScienceClock <= 0) { state.science += capitalScienceYield(); state.capitalScienceClock += 15; state.capitalSciencePulses += 1; }
   }
 
+  function enterTutorialStep(step) {
+    const tutorial = state.tutorial; if (!tutorial || tutorial.complete) return;
+    tutorial.step = Math.max(0, Math.min(4, step));
+    if (tutorial.step === 1) state.science = Math.max(state.science, TECHS.frontier.cost);
+    if (tutorial.step === 2) state.production = Math.max(state.production, claimReserve());
+    if (tutorial.step === 3) state.production = Math.max(state.production, baseFoundCost());
+    if (tutorial.step === 4 && !tutorial.waveStarted) {
+      tutorial.waveStarted = true;
+      for (let i = 0; i < 4; i += 1) {
+        if (!spawnWildEnemy()) continue;
+        const enemy = state.enemies[state.enemies.length - 1]; enemy.training = true; tutorial.waveIds.push(enemy.id);
+      }
+    }
+  }
+
+  function updateTutorial() {
+    const tutorial = state.tutorial; if (!tutorial || tutorial.complete) return;
+    if (tutorial.step === 0) {
+      const distance = Math.hypot(state.player.x - tutorial.lastX, state.player.y - tutorial.lastY);
+      tutorial.moved += distance; tutorial.lastX = state.player.x; tutorial.lastY = state.player.y;
+      if (tutorial.moved >= 80) enterTutorialStep(1);
+    } else if (tutorial.step === 1 && state.techs.frontier) enterTutorialStep(2);
+    else if (tutorial.step === 2 && capturedCount() > tutorial.startTerritory) enterTutorialStep(3);
+    else if (tutorial.step === 3 && playerBases().length > tutorial.startBases) enterTutorialStep(4);
+    else if (tutorial.step === 4 && tutorial.waveStarted && !state.enemies.some((enemy) => tutorial.waveIds.includes(enemy.id))) { tutorial.complete = true; state.assaultClock = 120; state.wildSpawnClock = 24; }
+  }
+
   function update(dt) {
     if (!state.running || state.paused || state.choosing || state.menu || state.ended) return;
     state.time += dt; state.siegeLockMessageClock = Math.max(0, state.siegeLockMessageClock - dt); state.productionRate = productionRate(); state.scienceRate = scienceRate();
-    updateCapitalEconomy(dt);
+    updateCapitalEconomy(dt); updateTutorial(dt);
     updatePlayer(dt); updateVisibility(); updateOrders(dt); updateBaseGrowth(dt); updateShip(dt); updateBuildingWeapons(dt); updateBaseTurrets(dt);
     updateEnemyCivs(dt); updateAssault(dt); updateWildEnemies(dt); updateEnemies(dt); updateProjectiles(dt); updateEnemyShots(dt); updateParticles(dt);
     state.camera.x += (state.player.x - state.camera.x) * Math.min(1, dt * 8);
@@ -381,7 +443,7 @@
   }
 
   function baseTurretStats(level) {
-    return { range: view.hexSize * (2.2 + level * 0.45), damage: 10 + level * 8, rate: 1.25 - level * 0.2 };
+    return { range: view.hexSize * (2.2 + level * 0.45), damage: (10 + level * 8) * (state.techs.ballistics ? 1.2 : 1), rate: 1.25 - level * 0.2 };
   }
 
   function baseTurretTarget(base, range) {
@@ -438,8 +500,8 @@
     const bases = playerBases(); const structures = enemyStructures().filter((hex) => !hex.enemyStructure.breached);
     const target = forcedKey ? state.hexByKey.get(forcedKey) : bases[Math.floor(state.time / 90) % Math.max(1, bases.length)];
     if (!target?.baseLevel || !structures.length) return false;
-    const id = ++state.assaultId; let spawned = 0;
-    for (let i = 0; i < 12; i += 1) {
+    const id = ++state.assaultId; let spawned = 0; const assaultSize = state.mode === "tutorial" ? 6 : 12;
+    for (let i = 0; i < assaultSize; i += 1) {
       const source = structures[i % structures.length]; const civ = state.enemyCivs.find((item) => item.id === source.enemyCiv);
       if (spawnEnemyAt(source, civ, { assaultId: id, targetBaseKey: target.key })) spawned += 1;
     }
@@ -457,10 +519,11 @@
       state.production += 40; state.science += 12;
       const center = axialToWorld(base.q, base.r); state.messages.push({ text: "공세 방어 성공 · 산업 +40 · 과학 +12", x: center.x, y: center.y - 28, life: 3 });
     }
-    state.assault = null; state.assaultClock = 90;
+    state.assault = null; state.assaultClock = state.mode === "tutorial" ? 120 : 90;
   }
 
   function updateAssault(dt) {
+    if (state.tutorial && !state.tutorial.complete) return;
     if (state.assault) {
       if (!state.enemies.some((enemy) => enemy.assaultId === state.assault.id)) completeAssault();
       return;
@@ -471,18 +534,18 @@
 
   function damageBase(base, amount) {
     if (!base?.baseLevel) return;
-    base.defenseClock = 2; base.baseHp -= amount * (1 - (base.baseLevel - 1) * 0.12) * terrainModifiers(base).defense;
+    base.defenseClock = 2; base.baseHp -= amount * (1 - (base.baseLevel - 1) * 0.12) * terrainModifiers(base).defense * (state.techs.fortification ? 0.85 : 1);
     if (base.baseHp > 0) return;
     base.baseLevel = Math.max(1, base.baseLevel - 1); base.baseGrowth = 0; base.baseMaxHp = base.building === "command" ? 200 + (base.baseLevel - 1) * 50 : 120 + (base.baseLevel - 1) * 50; base.baseHp = base.baseMaxHp * 0.35;
     if (state.assault?.targetKey === base.key) {
       for (const enemy of state.enemies) if (enemy.assaultId === state.assault.id) { enemy.assaultId = null; enemy.targetBaseKey = null; }
-      state.assault = null; state.assaultClock = 90;
+      state.assault = null; state.assaultClock = state.mode === "tutorial" ? 120 : 90;
     }
   }
 
   function spawnWildEnemy(forcedHex) {
     const wildCount = state.enemies.filter((enemy) => enemy.originCiv === "wild").length;
-    if (wildCount >= WILD_CAP) return false;
+    if (wildCount >= (state.mode === "tutorial" ? 4 : WILD_CAP)) return false;
     const playerHex = hexAt(state.player.x, state.player.y);
     const eligible = state.hexes.filter((hex) => !hex.captured && !hex.enemyCiv && !hex.enemyNeutralized &&
       (!playerHex || (hexDistance(hex, playerHex) >= 3 && hexDistance(hex, playerHex) <= 6)));
@@ -500,9 +563,10 @@
   }
 
   function updateWildEnemies(dt) {
+    if (state.tutorial && !state.tutorial.complete) return;
     state.wildSpawnClock -= dt;
     if (state.wildSpawnClock > 0) return;
-    spawnWildEnemy(); state.wildSpawnClock = WILD_SPAWN_INTERVAL;
+    spawnWildEnemy(); state.wildSpawnClock = state.mode === "tutorial" ? 24 : WILD_SPAWN_INTERVAL;
   }
 
   function enemyExpansionCandidates(civ) {
@@ -544,6 +608,7 @@
   }
 
   function updateEnemyCivs(dt) {
+    if (state.tutorial && !state.tutorial.complete) return;
     for (const civ of state.enemyCivs) {
       if (civ.defeated) continue;
       for (const hex of enemyStructures(civ.id)) {
@@ -607,7 +672,7 @@
       return false;
     }
     const shielded = structure.type === "capital" && enemyStructures(civ?.id).some((item) => item.enemyStructure.type !== "capital");
-    structure.hp -= damage * (shielded ? 0.15 : 1);
+    structure.hp -= damage * (shielded ? 0.15 : 1) * (state.techs.guardian_analysis ? 1.25 : 1);
     const center = axialToWorld(hex.q, hex.r); burst(center.x, center.y, "#ffcfda", 5);
     if (structure.type === "capital" && shielded && structure.hp <= 0) { structure.hp = 1; return true; }
     if (structure.hp > 0) return true;
@@ -716,8 +781,11 @@
 
   function playerBases() { return state.hexes.filter((hex) => hex.captured && (hex.building === "command" || hex.building === "outpost")); }
 
+  function claimReserve() { return state.techs.logistics ? 25 : 35; }
+  function claimCost() { return state.techs.logistics ? 10 : 15; }
+  function baseFoundCost() { return state.techs.colonial_admin ? 40 : 50; }
   function baseClaimRadius(base) { return (base.baseLevel || 1) + 1 + (state.techs.frontier ? 1 : 0); }
-  function claimStageDuration(hex) { return CLAIM_STAGE_SECONDS * terrainModifiers(hex).claim * (state.techs.frontier ? 0.8 : 1) / state.expansionMultiplier; }
+  function claimStageDuration(hex) { return CLAIM_STAGE_SECONDS * terrainModifiers(hex).claim * (state.techs.frontier ? 0.8 : 1) * (state.techs.colonial_admin ? 0.75 : 1) / state.expansionMultiplier; }
 
   function claimBaseFor(hex) {
     if (!hex || hex.captured || hex.enemyCiv || !neighbors(hex).some((item) => item.captured)) return null;
@@ -738,7 +806,7 @@
     if (!hex || hex.captured || hex.enemyCiv) return "개척 불가";
     if (!claimBaseFor(hex)) return "영토 인접·거점 영향권 필요";
     if (!state.techs.frontier) return "개척 기술 필요";
-    if (!hex.claimFunded && state.production < 35) return "산업력 35 필요";
+    if (!hex.claimFunded && state.production < claimReserve()) return `산업력 ${claimReserve()} 필요`;
     return null;
   }
 
@@ -756,7 +824,7 @@
       if (previous) previous.claimProgress = 0;
     }
     if (type === "claim") {
-      if (!hex.claimFunded) { state.production -= 15; hex.claimFunded = true; }
+      if (!hex.claimFunded) { state.production -= claimCost(); hex.claimFunded = true; }
     }
     const stage = type === "claim" ? hex.claimStage : 0;
     state.activeOrder = { type, key: hex.key, baseKey: base.key, stage, progress: 0 };
@@ -797,7 +865,7 @@
     }
   }
 
-  function baseGrowthThreshold(level) { return (level === 1 ? 45 : 75) * (state.techs.urban ? 0.75 : 1); }
+  function baseGrowthThreshold(level) { return (level === 1 ? 45 : 75) * (state.techs.urban ? 0.75 : 1) * (state.techs.metropolitan ? 0.8 : 1); }
 
   function updateBaseGrowth(dt) {
     for (const base of playerBases()) {
@@ -812,13 +880,22 @@
 
   function foundBase() {
     const hex = state.hexByKey.get(state.selectedKey);
-    if (!hex?.captured || hex.building || state.production < 50) return false;
-    state.production -= 50; hex.building = "outpost"; hex.baseLevel = 1; hex.baseGrowth = 0; hex.baseMaxHp = 120; hex.baseHp = 120; hex.defenseClock = 0; hex.turretClock = 0; revealAround(state, hex.q, hex.r, 2); updateHud(); return true;
+    const cost = baseFoundCost(); if (!hex?.captured || hex.building || state.production < cost) return false;
+    state.production -= cost; hex.building = "outpost"; hex.baseLevel = 1; hex.baseGrowth = 0; hex.baseMaxHp = 120; hex.baseHp = 120; hex.defenseClock = 0; hex.turretClock = 0; revealAround(state, hex.q, hex.r, 2); updateHud(); return true;
+  }
+
+  function techLockReason(id) {
+    const tech = TECHS[id]; if (!tech) return "알 수 없는 기술";
+    if (state.techs[id]) return "연구 완료";
+    const missing = tech.requires.filter((required) => !state.techs[required]);
+    if (missing.length) return `선행: ${missing.map((required) => TECHS[required].title).join(", ")}`;
+    if (state.science < tech.cost) return `과학 ${tech.cost} 필요`;
+    return null;
   }
 
   function research(id) {
-    const cost = TECHS[id]; if (!cost || state.techs[id] || state.science < cost) return false;
-    state.science -= cost; state.techs[id] = true; updateHud(); return true;
+    const tech = TECHS[id]; if (!tech || techLockReason(id)) return false;
+    state.science -= tech.cost; state.techs[id] = true; renderTechTree(); updateHud(); return true;
   }
 
   function startShip() {
@@ -829,11 +906,12 @@
 
   function updateShip(dt) {
     const ship = state.ship; if (!ship) return;
+    const buildSeconds = state.techs.orbital_engineering ? 15 : 20; const launchSeconds = state.techs.orbital_engineering ? 35 : 45;
     ship.progress += dt;
-    if (ship.phase === "build" && ship.progress >= 20) {
-      ship.progress -= 20; ship.stage += 1;
+    if (ship.phase === "build" && ship.progress >= buildSeconds) {
+      ship.progress -= buildSeconds; ship.stage += 1;
       if (ship.stage >= 3) { ship.phase = "launch"; ship.progress = 0; }
-    } else if (ship.phase === "launch" && ship.progress >= 45) finish(true, "science");
+    } else if (ship.phase === "launch" && ship.progress >= launchSeconds) finish(true, "science");
   }
 
   function currentBuildTile() { return hexAt(state.player.x, state.player.y); }
@@ -1031,7 +1109,8 @@
     if (ui.enemyCapitals) ui.enemyCapitals.textContent = `${livingCapitals} / 3`; if (ui.enemyTerritory) ui.enemyTerritory.textContent = state.hexes.filter((hex) => hex.enemyCiv).length;
     if (ui.enemyPressure) ui.enemyPressure.textContent = state.enemies.length;
     if (ui.militaryProgress) ui.militaryProgress.textContent = `${3 - livingCapitals} / 3`;
-    if (ui.scienceProgress) ui.scienceProgress.textContent = state.ship ? state.ship.phase === "launch" ? `발사 방어 ${Math.floor(state.ship.progress)} / 45초` : `우주선 ${state.ship.stage} / 3` : state.techs.aerospace ? "우주기지 선택" : "우주항법 연구 필요";
+    const shipBuildSeconds = state.techs.orbital_engineering ? 15 : 20; const shipLaunchSeconds = state.techs.orbital_engineering ? 35 : 45;
+    if (ui.scienceProgress) ui.scienceProgress.textContent = state.ship ? state.ship.phase === "launch" ? `발사 방어 ${Math.floor(state.ship.progress)} / ${shipLaunchSeconds}초` : `우주선 ${state.ship.stage} / 3` : state.techs.aerospace ? "우주기지 선택" : "우주항법 연구 필요";
     if (ui.expansion) ui.expansion.textContent = state.activeOrder?.type === "claim" ? `개척 ${state.activeOrder.stage} / 3` : state.techs.frontier ? "타일을 선택하세요" : "개척 기술 필요";
     const tile = currentBuildTile(); if (ui.terrain) ui.terrain.textContent = tile ? `${terrainName(tile.terrain)} · ${terrainModifiers(tile).label}${tile.resource ? ` · ${resourceName(tile.resource)}` : ""}` : "지도 밖";
     if (ui.arsenal) ui.arsenal.textContent = ["Pulse", "Orbital", p.chainLevel && `Chain Lv.${p.chainLevel}`, p.mineLevel && `Mine Lv.${p.mineLevel}`, buildingCount("factory") && "Scatter", buildingCount("lab") && "Rail", buildingCount("silo") && "Missile"].filter(Boolean).join(" / ");
@@ -1042,13 +1121,14 @@
     if (ui.captureLabel) ui.captureLabel.textContent = state.activeOrder ? `${state.activeOrder.type === "siege" ? "수도 공성" : "개척"} ${state.activeOrder.stage + 1}/3 · ${Math.floor(capturePercent)}%` : "강조된 헥스를 클릭해 명령하세요";
     const selected = state.hexByKey.get(state.selectedKey); const selectedClaimBase = selected && claimBaseFor(selected); const selectedClaimLock = selectedClaimBase && claimLockReason(selected);
     if (ui.selectedTile) ui.selectedTile.textContent = selected ? `${selected.q}, ${selected.r} · ${selected.captured ? "아군 영토" : selected.enemyCiv ? "적 영토" : "중립"}` : "선택 없음";
-    if (ui.selectedAction) { const turret = selected?.baseLevel ? baseTurretStats(selected.baseLevel) : null; const suitability = selectedClaimBase ? claimSuitability(selected, selectedClaimBase) : null; ui.selectedAction.textContent = !selected ? "지도에서 헥스를 선택하세요" : selected.enemyStructure?.breached ? siegeBaseFor(selected) ? "수도 공성 가능" : "거점 영향권 밖" : selectedClaimBase ? selectedClaimLock ? `개척 잠김 · ${selectedClaimLock} · 최초 투자 15` : `개척 ${Math.ceil(claimStageDuration(selected) * 3)}초 · ${selected.claimFunded ? "투자 완료" : "산업 15 투자"} · 적합도 ${claimSuitabilityGrade(suitability)} ${suitability} · ${terrainModifiers(selected).label}` : selected.captured && !selected.building ? state.production >= 50 ? "새 거점 설립 가능" : `새 거점 · 산업력 50 필요 (${Math.floor(state.production)} / 50)` : selected.baseLevel ? `거점 Lv.${selected.baseLevel} · HP ${Math.ceil(selected.baseHp)}/${selected.baseMaxHp} · 포탑 ${turret.damage}DMG/${(turret.range / view.hexSize).toFixed(1)}H/${turret.rate.toFixed(1)}s${selected.defenseClock > 0 ? " · 방어 중" : ""}` : "명령 없음"; }
-    if (ui.defenseStatus) { const assaultUnits = state.assault ? state.enemies.filter((enemy) => enemy.assaultId === state.assault.id).length : 0; ui.defenseStatus.textContent = state.assault ? `공세 진행 · ${state.assault.targetKey} · 잔여 ${assaultUnits}` : `다음 공세 ${Math.max(0, Math.ceil(state.assaultClock))}초`; }
+    if (ui.selectedAction) { const turret = selected?.baseLevel ? baseTurretStats(selected.baseLevel) : null; const suitability = selectedClaimBase ? claimSuitability(selected, selectedClaimBase) : null; const baseCost = baseFoundCost(); ui.selectedAction.textContent = !selected ? "지도에서 헥스를 선택하세요" : selected.enemyStructure?.breached ? siegeBaseFor(selected) ? "수도 공성 가능" : "거점 영향권 밖" : selectedClaimBase ? selectedClaimLock ? `개척 잠김 · ${selectedClaimLock} · 최초 투자 ${claimCost()}` : `개척 ${Math.ceil(claimStageDuration(selected) * 3)}초 · ${selected.claimFunded ? "투자 완료" : `산업 ${claimCost()} 투자`} · 적합도 ${claimSuitabilityGrade(suitability)} ${suitability} · ${terrainModifiers(selected).label}` : selected.captured && !selected.building ? state.production >= baseCost ? "새 거점 설립 가능" : `새 거점 · 산업력 ${baseCost} 필요 (${Math.floor(state.production)} / ${baseCost})` : selected.baseLevel ? `거점 Lv.${selected.baseLevel} · HP ${Math.ceil(selected.baseHp)}/${selected.baseMaxHp} · 포탑 ${Math.round(turret.damage)}DMG/${(turret.range / view.hexSize).toFixed(1)}H/${turret.rate.toFixed(1)}s${selected.defenseClock > 0 ? " · 방어 중" : ""}` : "명령 없음"; }
+    if (ui.defenseStatus) { const assaultUnits = state.assault ? state.enemies.filter((enemy) => enemy.assaultId === state.assault.id).length : 0; ui.defenseStatus.textContent = state.tutorial && !state.tutorial.complete ? "훈련 중 · 대공세 대기" : state.assault ? `공세 진행 · ${state.assault.targetKey} · 잔여 ${assaultUnits}` : `다음 공세 ${Math.max(0, Math.ceil(state.assaultClock))}초`; }
     if (ui.capitalCycle) ui.capitalCycle.textContent = `수도 산업 +${Math.round(capitalProductionYield())} (${Math.ceil(state.capitalProductionClock)}초) · 과학 +${Math.round(capitalScienceYield())} (${Math.ceil(state.capitalScienceClock)}초)`;
-    if (ui.foundBase) ui.foundBase.disabled = !selected?.captured || Boolean(selected.building) || state.production < 50;
+    if (ui.foundBase) ui.foundBase.disabled = !selected?.captured || Boolean(selected.building) || state.production < baseFoundCost();
     if (ui.shipButton) ui.shipButton.disabled = !state.techs.aerospace || Boolean(state.ship) || !selected?.captured || selected.baseLevel < 3 || state.production < 90;
-    if (ui.shipStatus) ui.shipStatus.textContent = !state.ship ? state.techs.aerospace ? "레벨 3 거점과 산업력 90 필요" : "우주항법 기술 필요" : state.ship.phase === "launch" ? `발사 방어 ${Math.ceil(45 - state.ship.progress)}초` : `우주선 제작 ${state.ship.stage + 1}/3 · ${Math.floor(state.ship.progress / 20 * 100)}%`;
-    for (const [id, cost] of Object.entries(TECHS)) { const button = ui[`tech${id[0].toUpperCase()}${id.slice(1)}`]; if (button) { button.disabled = state.techs[id] || state.science < cost; button.dataset.researched = String(state.techs[id]); } }
+    if (ui.shipStatus) ui.shipStatus.textContent = !state.ship ? state.techs.aerospace ? "레벨 3 거점과 산업력 90 필요" : "우주항법 기술 필요" : state.ship.phase === "launch" ? `발사 방어 ${Math.ceil(shipLaunchSeconds - state.ship.progress)}초` : `우주선 제작 ${state.ship.stage + 1}/3 · ${Math.floor(state.ship.progress / shipBuildSeconds * 100)}%`;
+    for (const [id, tech] of Object.entries(TECHS)) { const button = ui[`tech${id[0].toUpperCase()}${id.slice(1)}`]; if (button) { button.disabled = Boolean(techLockReason(id)); button.dataset.researched = String(state.techs[id]); } }
+    updateTutorialUi();
     if (state.menu) updateBuildUi();
   }
 
@@ -1060,7 +1140,10 @@
     const wildUnits = state.enemies.filter((enemy) => enemy.originCiv === "wild");
     const victoryProgress = Object.freeze({ military: 3 - state.enemyCivs.filter((civ) => !civ.defeated).length,
       science: state.ship ? `${state.ship.phase}:${state.ship.stage}` : state.techs.aerospace ? "ship-ready" : "research" });
-    return Object.freeze({ running: state.running, paused: state.paused, choosing: state.choosing, menu: state.menu, ended: state.ended, won: state.won, victoryType: state.victoryType,
+    const tutorial = state.tutorial; const tutorialRemaining = tutorial ? tutorial.waveIds.filter((id) => state.enemies.some((enemy) => enemy.id === id)).length : 0;
+    return Object.freeze({ running: state.running, paused: state.paused, choosing: state.choosing, menu: state.menu, ended: state.ended, won: state.won, victoryType: state.victoryType, mode: state.mode,
+      tutorial: tutorial ? Object.freeze({ step: tutorial.step, complete: tutorial.complete, moved: Number(tutorial.moved.toFixed(1)), waveStarted: tutorial.waveStarted, waveRemaining: tutorialRemaining,
+        progress: tutorial.complete ? 1 : tutorial.step === 0 ? Math.min(1, tutorial.moved / 80) : tutorial.step === 1 ? Number(state.techs.frontier) : tutorial.step === 2 ? Math.min(1, capturedCount() - tutorial.startTerritory) : tutorial.step === 3 ? Math.min(1, playerBases().length - tutorial.startBases) : (4 - tutorialRemaining) / 4 }) : null,
       time: Number(state.time.toFixed(2)), hp: Number(state.player.hp.toFixed(1)), maxHp: state.player.maxHp, x: Number(state.player.x.toFixed(1)), y: Number(state.player.y.toFixed(1)),
       camera: Object.freeze({ x: Number(state.camera.x.toFixed(1)), y: Number(state.camera.y.toFixed(1)) }), mapTiles: state.hexes.length,
       discovered: state.hexes.filter((hex) => hex.discovered).length, level: state.player.level, xp: state.player.xp, kills: state.kills, territory: capturedCount(), enemies: state.enemies.length,
@@ -1094,7 +1177,7 @@
       selectedKey: state.selectedKey,
       activeOrder: state.activeOrder ? Object.freeze({ type: state.activeOrder.type, key: state.activeOrder.key, baseKey: state.activeOrder.baseKey,
         stage: state.activeOrder.stage, progress: Number(state.activeOrder.progress.toFixed(2)), funded: Boolean(state.hexByKey.get(state.activeOrder.key)?.claimFunded) }) : null,
-      bases: Object.freeze(playerBases().map((base) => { const turret = baseTurretStats(base.baseLevel); return Object.freeze({ key: base.key, level: base.baseLevel, growth: Number(base.baseGrowth.toFixed(2)), radius: baseClaimRadius(base),
+      bases: Object.freeze(playerBases().map((base) => { const turret = baseTurretStats(base.baseLevel); return Object.freeze({ key: base.key, level: base.baseLevel, growth: Number(base.baseGrowth.toFixed(2)), growthThreshold: base.baseLevel < 3 ? baseGrowthThreshold(base.baseLevel) : null, radius: baseClaimRadius(base),
         hp: Number(base.baseHp.toFixed(1)), maxHp: base.baseMaxHp, defending: base.defenseClock > 0,
         turret: Object.freeze({ range: Number(turret.range.toFixed(1)), damage: turret.damage, rate: Number(turret.rate.toFixed(2)) }) }); })),
       assault: state.assault ? Object.freeze({ ...state.assault, remaining: state.enemies.filter((enemy) => enemy.assaultId === state.assault.id).length }) : null,
@@ -1102,8 +1185,10 @@
       claims: Object.freeze(state.hexes.filter((hex) => hex.claimStage > 0 || hex.claimFunded).map((hex) => Object.freeze({ key: hex.key, stage: hex.claimStage, progress: Number(hex.claimProgress.toFixed(2)), funded: hex.claimFunded }))),
       claimCandidates: Object.freeze(state.hexes.map((hex) => ({ hex, base: claimBaseFor(hex) })).filter((item) => item.base).map(({ hex, base }) => Object.freeze({ key: hex.key,
         baseKey: base.key, terrain: hex.terrain, resource: hex.resource, stageSeconds: Number(claimStageDuration(hex).toFixed(2)), suitability: claimSuitability(hex, base), effect: terrainModifiers(hex).label,
-        funded: hex.claimFunded, cost: hex.claimFunded ? 0 : 15, requiredReserve: hex.claimFunded ? 0 : 35, locked: Boolean(claimLockReason(hex)), reason: claimLockReason(hex) }))),
-      techs: Object.freeze({ ...state.techs }), ship: state.ship ? Object.freeze({ ...state.ship, progress: Number(state.ship.progress.toFixed(2)) }) : null });
+        funded: hex.claimFunded, cost: hex.claimFunded ? 0 : claimCost(), requiredReserve: hex.claimFunded ? 0 : claimReserve(), locked: Boolean(claimLockReason(hex)), reason: claimLockReason(hex) }))),
+      techs: Object.freeze({ ...state.techs }), techInfo: Object.freeze(Object.values(TECHS).map((tech) => Object.freeze({ id: tech.id, title: tech.title, text: tech.text, cost: tech.cost,
+        requires: tech.requires, researched: state.techs[tech.id], locked: Boolean(techLockReason(tech.id)), reason: techLockReason(tech.id) }))),
+      ship: state.ship ? Object.freeze({ ...state.ship, progress: Number(state.ship.progress.toFixed(2)), buildSeconds: state.techs.orbital_engineering ? 15 : 20, launchSeconds: state.techs.orbital_engineering ? 35 : 45 }) : null });
   }
 
   function step(seconds) { let remaining = Math.max(0, Number(seconds) || 0); while (remaining > 0) { const dt = Math.min(0.05, remaining); update(dt); remaining -= dt; } return snapshot(); }
@@ -1124,7 +1209,7 @@
   function debugResolveAssault(success = true) { if (!state.assault) return false; if (success) { const id = state.assault.id; state.enemies = state.enemies.filter((enemy) => enemy.assaultId !== id); completeAssault(); } else damageBase(state.hexByKey.get(state.assault.targetKey), 99999); updateHud(); return true; }
   function debugClaimInfo(key) { const hex = state.hexByKey.get(key); const base = claimBaseFor(hex); return hex && base ? Object.freeze({ key, baseKey: base.key, terrain: hex.terrain,
     resource: hex.resource, stageSeconds: claimStageDuration(hex), suitability: claimSuitability(hex, base), funded: hex.claimFunded,
-    cost: hex.claimFunded ? 0 : 15, requiredReserve: hex.claimFunded ? 0 : 35, locked: Boolean(claimLockReason(hex)), reason: claimLockReason(hex), modifiers: Object.freeze({ ...terrainModifiers(hex) }) }) : null; }
+    cost: hex.claimFunded ? 0 : claimCost(), requiredReserve: hex.claimFunded ? 0 : claimReserve(), locked: Boolean(claimLockReason(hex)), reason: claimLockReason(hex), modifiers: Object.freeze({ ...terrainModifiers(hex) }) }) : null; }
   function frame(now) { const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000)); lastFrame = now; update(dt); render(); animationFrame = requestAnimationFrame(frame); }
 
   function clearTouchInput() { touchMove.pointerId = null; touchMove.x = 0; touchMove.y = 0; if (ui.touchStickKnob) ui.touchStickKnob.style.transform = "translate(-50%, -50%)"; }
@@ -1137,14 +1222,39 @@
     ui.touchStick?.addEventListener("pointerup", releaseMove); ui.touchStick?.addEventListener("pointercancel", releaseMove); ui.touchStick?.addEventListener("lostpointercapture", releaseMove);
   }
 
-  function openTechMenu() { if (!state.running || state.paused || state.choosing || state.ended) return; state.menu = true; keys.clear(); clearTouchInput(); setOverlay(ui.techOverlay, true); updateHud(); }
+  function renderTechTree() {
+    if (!ui.techOptions || !state) return;
+    ui.techOptions.replaceChildren(...Object.values(TECHS).map((tech) => {
+      const button = document.createElement("button"); const reason = techLockReason(tech.id);
+      button.type = "button"; button.className = `tech-card ${tech.id}`; button.dataset.techId = tech.id; button.dataset.researched = String(state.techs[tech.id]);
+      button.dataset.tier = String(({ logistics: 2, fortification: 2, siege: 2, aerospace: 2, colonial_admin: 3, metropolitan: 3, guardian_analysis: 3, orbital_engineering: 3 })[tech.id] || 1); button.dataset.branch = ({ frontier: "frontier", logistics: "expansion", colonial_admin: "expansion", urban: "city", fortification: "city", metropolitan: "city", ballistics: "military", siege: "siege", guardian_analysis: "siege", research_network: "science", aerospace: "exodus", orbital_engineering: "exodus" })[tech.id];
+      button.disabled = Boolean(reason); button.title = reason || `${tech.title} 연구 가능`;
+      const requires = tech.requires.length ? ` · 선행 ${tech.requires.map((id) => TECHS[id].title).join(", ")}` : "";
+      button.innerHTML = `<strong>${tech.title}</strong><span>과학 ${tech.cost}${requires}</span><small>${tech.text}${reason ? ` · ${reason}` : ""}</small>`;
+      return button;
+    }));
+  }
+
+  function updateTutorialUi() {
+    const tutorial = state?.tutorial; if (!tutorial) return;
+    const step = Math.min(4, tutorial.step); const remaining = tutorial.waveIds.filter((id) => state.enemies.some((enemy) => enemy.id === id)).length;
+    const progress = tutorial.complete ? 1 : step === 0 ? Math.min(1, tutorial.moved / 80) : step === 1 ? Number(state.techs.frontier) : step === 2 ? Math.min(1, capturedCount() - tutorial.startTerritory) : step === 3 ? Math.min(1, playerBases().length - tutorial.startBases) : (4 - remaining) / 4;
+    if (ui.tutorialStep) ui.tutorialStep.textContent = tutorial.complete ? "완료" : `${step + 1} / 5`;
+    if (ui.tutorialTitle) ui.tutorialTitle.textContent = tutorial.complete ? "훈련 완료" : TUTORIAL_STEPS[step].title;
+    if (ui.tutorialCopy) ui.tutorialCopy.textContent = tutorial.complete ? "낮은 압력의 전장에서 계속 성장하거나 본 게임으로 돌아갈 수 있습니다." : TUTORIAL_STEPS[step].copy;
+    if (ui.tutorialProgress) ui.tutorialProgress.style.width = `${Math.max(0, Math.min(100, progress * 100))}%`;
+  }
+
+  function openTechMenu() { if (!state.running || state.paused || state.choosing || state.ended) return; state.menu = true; keys.clear(); clearTouchInput(); renderTechTree(); setOverlay(ui.techOverlay, true); updateHud(); }
   function closeTechMenu() { state.menu = false; setOverlay(ui.techOverlay, false); lastFrame = performance.now(); canvas.focus(); }
+  function openLegend() { if (!state) return; state.menu = true; keys.clear(); clearTouchInput(); setOverlay(ui.legendOverlay, true); }
+  function closeLegend() { state.menu = false; setOverlay(ui.legendOverlay, false); lastFrame = performance.now(); canvas.focus(); }
 
   window.addEventListener("resize", resize); window.addEventListener("blur", () => { keys.clear(); clearTouchInput(); });
   document.addEventListener("visibilitychange", () => { if (document.hidden) { keys.clear(); clearTouchInput(); togglePause(true); } });
   window.addEventListener("keydown", (event) => {
     if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyB"].includes(event.code)) event.preventDefault();
-    if (event.code === "Escape" && state.menu) { setOverlay(ui.techOverlay, false); closeBuildMenu(); return; }
+    if (event.code === "Escape" && state.menu) { setOverlay(ui.techOverlay, false); setOverlay(ui.legendOverlay, false); closeBuildMenu(); return; }
     if (event.code === "Escape" || event.code === "KeyP") { togglePause(); return; }
     if (event.code === "KeyB") { openBuildMenu(); return; }
     keys.add(event.code);
@@ -1153,18 +1263,21 @@
   canvas.addEventListener("pointermove", (event) => { pointer.clientX = event.clientX; pointer.clientY = event.clientY; pointer.inside = true; });
   canvas.addEventListener("pointerleave", () => { pointer.inside = false; });
   canvas.addEventListener("pointerdown", (event) => { if (event.button === 0) { event.preventDefault(); pointer.clientX = event.clientX; pointer.clientY = event.clientY; pointer.inside = true; const world = screenToWorld(event.clientX, event.clientY); const hex = hexAt(world.x, world.y); if (hex) selectTile(hex.key); canvas.focus(); } });
-  ui.start?.addEventListener("click", startGame); ui.restart?.addEventListener("click", startGame); ui.resume?.addEventListener("click", () => togglePause(false)); ui.playAgain?.addEventListener("click", startGame); ui.victoryRestart?.addEventListener("click", startGame); ui.pauseButton?.addEventListener("click", () => togglePause());
+  ui.modeNormal?.addEventListener("click", () => startGame("normal")); ui.modeTutorial?.addEventListener("click", () => startGame("tutorial"));
+  ui.restart?.addEventListener("click", () => startGame(state.mode)); ui.resume?.addEventListener("click", () => togglePause(false)); ui.playAgain?.addEventListener("click", () => startGame(state.mode)); ui.victoryRestart?.addEventListener("click", () => startGame(state.mode)); ui.pauseButton?.addEventListener("click", () => togglePause());
+  ui.lobbyReturn?.addEventListener("click", returnToLobby); ui.victoryLobby?.addEventListener("click", returnToLobby); ui.legendButton?.addEventListener("click", openLegend); ui.legendClose?.addEventListener("click", closeLegend);
   ui.buildButton?.addEventListener("click", openBuildMenu); ui.buildCancel?.addEventListener("click", closeBuildMenu);
   ui.foundBase?.addEventListener("click", foundBase); ui.shipButton?.addEventListener("click", startShip);
   ui.techButton?.addEventListener("click", openTechMenu); ui.techClose?.addEventListener("click", closeTechMenu);
+  ui.techOptions?.addEventListener("click", (event) => { const button = event.target.closest?.("[data-tech-id]"); if (button?.dataset.techId) research(button.dataset.techId); });
   for (const id of Object.keys(TECHS)) ui[`tech${id[0].toUpperCase()}${id.slice(1)}`]?.addEventListener("click", () => research(id));
   for (const type of Object.keys(BUILDINGS)) ui[`build${type[0].toUpperCase()}${type.slice(1)}`]?.addEventListener("click", () => build(type));
   bindTouchControls();
 
-  window.__HEXFRONT_DEBUG__ = Object.freeze({ snapshot, reset: () => reset(true), step, build,
+  window.__HEXFRONT_DEBUG__ = Object.freeze({ snapshot, reset: (mode = state?.mode || "normal") => reset(true, mode), startGame, returnToLobby, step, build,
     damageEnemyStructure: debugDamageStructure, spawnEnemy: debugSpawnEnemy, expandEnemy: debugExpandEnemy,
     spawnWild: debugSpawnWild, grantXp: debugGrantXp, applyAugment: debugApplyAugment,
     selectTile, research, foundBase, startShip, triggerAssault, resolveAssault: debugResolveAssault, setPlayerTile: debugSetPlayerTile,
-    claimInfo: debugClaimInfo, terrainModifiers, grantResources: debugGrantResources });
-  resize(); reset(!ui.start); cancelAnimationFrame(animationFrame); animationFrame = requestAnimationFrame(frame);
+    claimInfo: debugClaimInfo, terrainModifiers, techLockReason, grantResources: debugGrantResources });
+  resize(); reset(!(ui.modeNormal || ui.modeTutorial || ui.lobby), "normal"); cancelAnimationFrame(animationFrame); animationFrame = requestAnimationFrame(frame);
 })();

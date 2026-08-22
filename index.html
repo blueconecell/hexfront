@@ -72,6 +72,7 @@
       <div class="territory-legend" aria-label="영토 색상 범례">
         <span class="own">아군</span><span class="neutral">중립</span><span class="hostile">적군</span>
       </div>
+      <button id="legend-button" class="legend-button" type="button" aria-haspopup="dialog">지도 기호 전체 보기</button>
       <p class="doctrine-label">VICTORY DOCTRINES</p>
       <div class="doctrine-grid two" aria-label="승리 조건 진행도">
         <div class="military"><span>군사</span><strong id="military-progress">0 / 3</strong></div>
@@ -90,6 +91,16 @@
         <div><dt>현재 지형</dt><dd id="terrain-value">지휘 기지</dd></div>
         <div><dt>국경 확장</dt><dd id="expansion-value">전초기지 필요</dd></div>
       </dl>
+    </aside>
+
+    <aside id="tutorial-panel" class="tutorial-panel" hidden aria-live="polite" aria-labelledby="tutorial-title">
+      <div class="tutorial-heading">
+        <span>TRAINING ROUTE</span>
+        <strong id="tutorial-step-value">1 / 5</strong>
+      </div>
+      <h2 id="tutorial-title">기체를 이동하십시오</h2>
+      <p id="tutorial-copy">WASD, 방향키 또는 왼쪽 이동 패드로 지휘 기체를 움직이십시오.</p>
+      <div class="tutorial-progress" aria-hidden="true"><i id="tutorial-progress-fill"></i></div>
     </aside>
 
     <section class="capture-panel command-panel" aria-live="polite">
@@ -111,16 +122,83 @@
     </footer>
   </main>
 
-  <section id="start-overlay" class="overlay" aria-labelledby="start-title">
-    <div class="modal briefing">
-      <p class="eyebrow">FRONTIER COMMAND / TWO ENDINGS</p>
-      <h2 id="start-title">명령하고, 성장하고, 떠나라.</h2>
-      <p class="lead">공격은 자동입니다. 지형과 자원을 비교해 거점 가까운 영토를 개척하고, 적의 대공세로부터 도시를 지켜 성장시키십시오. 적 수도를 점령하거나 우주선을 완성해 행성을 탈출할 수 있습니다.</p>
-      <div class="briefing-grid two">
-        <article class="military"><span>MILITARY</span><strong>정복 승리</strong><p>생산기지를 끊고 세 적 문명의 수도를 공성 점령합니다.</p></article>
-        <article class="science"><span>EXODUS</span><strong>과학 승리</strong><p>우주항법을 연구하고 레벨 3 거점에서 우주선을 건조해 탈출합니다.</p></article>
+  <section id="lobby-overlay" class="overlay lobby-overlay" aria-labelledby="lobby-title">
+    <div class="modal lobby-modal">
+      <div class="lobby-copy">
+        <p class="eyebrow">FRONTIER COMMAND / MISSION BOARD</p>
+        <h2 id="lobby-title">출격 좌표를<br>선택하십시오.</h2>
+        <p class="lead">자동 전투 기체를 지휘해 영토를 잇고 문명을 성장시키십시오. 적 수도를 점령하거나 우주선을 완성하면 전선에서 승리합니다.</p>
+        <dl class="lobby-readout" aria-label="전장 요약">
+          <div><dt>GRID</dt><dd>817 HEX</dd></div>
+          <div><dt>HOSTILES</dt><dd>3 CIVS</dd></div>
+          <div><dt>ENDINGS</dt><dd>2 ROUTES</dd></div>
+        </dl>
       </div>
-      <button id="start-button" class="primary-button" type="button">전선 투입</button>
+      <div class="mission-board" aria-label="게임 모드 선택">
+        <span class="mission-orbit orbit-one" aria-hidden="true"></span>
+        <span class="mission-orbit orbit-two" aria-hidden="true"></span>
+        <button id="mode-normal-button" class="mode-card normal" type="button">
+          <span class="mode-coordinate">SECTOR 01 · STANDARD</span>
+          <strong>개척 전선</strong>
+          <small>817개 타일에서 두 승리 조건을 향해 자유롭게 성장합니다.</small>
+          <b>일반 모드 시작 →</b>
+        </button>
+        <button id="mode-tutorial-button" class="mode-card tutorial" type="button">
+          <span class="mode-coordinate">SECTOR T0 · TRAINING</span>
+          <strong>지휘 훈련</strong>
+          <small>이동, 개척, 건설, 연구의 핵심 흐름을 짧게 익힙니다.</small>
+          <b>튜토리얼 시작 →</b>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section id="legend-overlay" class="overlay" hidden aria-labelledby="legend-title" role="dialog" aria-modal="true">
+    <div class="modal legend-modal">
+      <p class="eyebrow">FRONTIER GRID / FIELD KEY</p>
+      <h2 id="legend-title">지도 판독표</h2>
+      <div class="legend-sections">
+        <section aria-labelledby="legend-owner-title">
+          <h3 id="legend-owner-title">소유권 색상</h3>
+          <ul class="legend-list ownership-list">
+            <li><i class="key-hex own"></i><span><strong>아군</strong><small>청록색 면과 테두리</small></span></li>
+            <li><i class="key-hex neutral"></i><span><strong>중립</strong><small>회청색 타일</small></span></li>
+            <li><i class="key-hex hostile"></i><span><strong>적군</strong><small>적색·보라색 영토</small></span></li>
+            <li><i class="key-hex selected"></i><span><strong>선택</strong><small>노란색 외곽선</small></span></li>
+          </ul>
+        </section>
+        <section aria-labelledby="legend-terrain-title">
+          <h3 id="legend-terrain-title">지형 기호</h3>
+          <ul class="legend-list glyph-list">
+            <li><i>·</i><span><strong>평원</strong><small>표준 이동·개척</small></span></li>
+            <li><i>▲</i><span><strong>능선</strong><small>방어·시야 유리</small></span></li>
+            <li><i>○</i><span><strong>분화구</strong><small>산업 생산 보너스</small></span></li>
+            <li><i>≈</i><span><strong>사구</strong><small>이동·개척 지연</small></span></li>
+          </ul>
+        </section>
+        <section aria-labelledby="legend-resource-title">
+          <h3 id="legend-resource-title">자원 기호</h3>
+          <ul class="legend-list glyph-list resources">
+            <li><i>◆</i><span><strong>광맥</strong><small>산업 생산 강화</small></span></li>
+            <li><i>◈</i><span><strong>동력핵</strong><small>전투 시설 강화</small></span></li>
+            <li><i>✦</i><span><strong>유적</strong><small>과학 생산 강화</small></span></li>
+            <li><i>●</i><span><strong>생명정원</strong><small>도시 방어 보조</small></span></li>
+          </ul>
+        </section>
+        <section aria-labelledby="legend-building-title">
+          <h3 id="legend-building-title">시설 기호</h3>
+          <ul class="legend-list building-list">
+            <li><i>HQ</i><span><strong>수도</strong><small>문명의 중심</small></span></li>
+            <li><i>O</i><span><strong>전초기지</strong><small>국경 자동 확장</small></span></li>
+            <li><i>F</i><span><strong>군수공장</strong><small>산업·산탄 포격</small></span></li>
+            <li><i>L</i><span><strong>연구소</strong><small>과학·레일 포격</small></span></li>
+            <li><i>S</i><span><strong>사일로</strong><small>유도탄 발사</small></span></li>
+            <li><i class="enemy">F</i><span><strong>적 생산기지</strong><small>침공군 생산</small></span></li>
+            <li><i class="enemy">G</i><span><strong>적 수호시설</strong><small>수도 보호막 유지</small></span></li>
+          </ul>
+        </section>
+      </div>
+      <button id="legend-close" class="quiet-button build-cancel" type="button">판독표 닫기</button>
     </div>
   </section>
 
@@ -160,20 +238,7 @@
       <p class="eyebrow">SCIENCE TREE</p>
       <h2 id="tech-title">문명의 기준을 연구하십시오.</h2>
       <p class="build-tile-info">과학을 소비해 개척, 거점 성장, 적 도시 공성, 우주 탈출 계획을 해금합니다.</p>
-      <div class="tech-options">
-        <button id="tech-frontier" class="tech-card frontier" type="button">
-          <span>25 과학</span><strong>개척 측량학</strong><small>개척 명령 해금, 거점 영향권 +1, 점령 단계 시간 -20%</small>
-        </button>
-        <button id="tech-urban" class="tech-card urban" type="button">
-          <span>30 과학</span><strong>도시공학</strong><small>아군 거점 성장 기준 -25%</small>
-        </button>
-        <button id="tech-siege" class="tech-card siege" type="button">
-          <span>70 과학</span><strong>공성공학</strong><small>적 도시 문지기와 수도 방어막에 유효 피해</small>
-        </button>
-        <button id="tech-aerospace" class="tech-card aerospace" type="button">
-          <span>60 과학</span><strong>우주항법</strong><small>레벨 3 거점의 우주선 건조 명령 해금</small>
-        </button>
-      </div>
+      <div id="tech-options" class="tech-options" aria-label="연구 기술 목록"></div>
       <button id="tech-close" class="quiet-button build-cancel" type="button">연구 닫기</button>
     </div>
   </section>
@@ -191,7 +256,10 @@
       <p class="eyebrow">SIGNAL LOST</p>
       <h2 id="game-over-title">전선이 붕괴했습니다.</h2>
       <p>배치를 바꾸고 다시 진입하십시오.</p>
-      <button id="play-again-button" class="primary-button" type="button">다시 투입</button>
+      <div class="end-actions">
+        <button id="play-again-button" class="primary-button" type="button">다시 투입</button>
+        <button id="lobby-return-button" class="quiet-button" type="button">로비로 복귀</button>
+      </div>
     </div>
   </section>
 
@@ -200,7 +268,10 @@
       <p class="eyebrow">FRONTIER SECURED</p>
       <h2 id="victory-title">문명 승리.</h2>
       <p id="victory-copy">선택한 교리가 전장의 새로운 질서가 되었습니다.</p>
-      <button id="victory-restart-button" class="primary-button" type="button">새 전선 개척</button>
+      <div class="end-actions">
+        <button id="victory-restart-button" class="primary-button" type="button">새 전선 개척</button>
+        <button id="victory-lobby-button" class="quiet-button" type="button">로비로 복귀</button>
+      </div>
     </div>
   </section>
 
