@@ -31,14 +31,18 @@
         </div>
       </div>
       <div class="mission">
-        <span id="objective-text">적 수도를 점령하거나 우주선을 발사하십시오.</span>
+        <span id="objective-text">전선 작전 시간</span>
         <strong id="timer-value">00:00</strong>
+      </div>
+      <div class="resource-chips" aria-label="문명 자원">
+        <div class="resource-chip industry"><span>산업</span><strong id="production-value">25</strong></div>
+        <div class="resource-chip science"><span>과학</span><strong id="science-value">0</strong></div>
       </div>
       <div class="top-actions">
         <button id="tech-button" class="quiet-button research-trigger" type="button">연구</button>
         <button id="build-button" class="quiet-button build-trigger" type="button">건설</button>
+        <button id="intel-button" class="quiet-button intel-trigger" type="button">정보</button>
         <button id="pause-button" class="quiet-button" type="button">일시정지</button>
-        <button id="restart-button" class="quiet-button" type="button">전선 재시작</button>
       </div>
     </header>
 
@@ -52,51 +56,33 @@
         <div class="meter-heading"><span>증강 동기화</span><strong>LV <b id="level-value">1</b></strong></div>
         <div class="meter xp"><i id="xp-fill"></i></div>
       </section>
-      <dl class="telemetry">
-        <div><dt>자동 주무기</dt><dd id="weapon-value">표준 펄스</dd></div>
-        <div><dt>주변 공격</dt><dd id="auto-value">궤도 블레이드 × 1</dd></div>
-        <div><dt>무기 체계</dt><dd id="arsenal-value">펄스</dd></div>
-      </dl>
+      <div class="evolution-tracks" aria-label="전투 증강 진화">
+        <section class="evolution-track pulse">
+          <div class="evolution-heading"><span id="pulse-evolution-name">펄스 코어</span><strong id="pulse-evolution-level">0 / 4</strong></div>
+          <div class="evolution-meter"><i id="pulse-evolution-fill"></i></div>
+        </section>
+        <section class="evolution-track orbit">
+          <div class="evolution-heading"><span id="orbit-evolution-name">궤도 코어</span><strong id="orbit-evolution-level">0 / 4</strong></div>
+          <div class="evolution-meter"><i id="orbit-evolution-fill"></i></div>
+        </section>
+        <p id="fusion-status" class="fusion-status">두 코어의 1차 진화가 필요합니다.</p>
+      </div>
     </aside>
 
-    <aside class="hud hud-right" aria-label="영토 현황">
-      <p class="panel-label">FRONTIER GRID</p>
-      <div class="big-stat"><strong id="territory-value">1</strong><span>점령 타일</span></div>
-      <div class="economy-grid" aria-label="영토 경제">
-        <div><span>산업력</span><strong id="production-value">25</strong></div>
-        <div><span>생산</span><strong id="production-rate">+0.0/s</strong></div>
-        <div><span>과학</span><strong id="science-value">0</strong></div>
-        <div><span>연구</span><strong id="science-rate">+0.0/s</strong></div>
-      </div>
-      <div class="capital-cycle-status" id="capital-cycle-status">수도 생산 주기 준비 중</div>
-      <div class="territory-legend" aria-label="영토 색상 범례">
-        <span class="own">아군</span><span class="neutral">중립</span><span class="hostile">적군</span>
-      </div>
-      <button id="legend-button" class="legend-button" type="button" aria-haspopup="dialog">지도 기호 전체 보기</button>
-      <p class="doctrine-label">VICTORY DOCTRINES</p>
+    <aside class="hud hud-right" aria-label="승리 조건">
+      <p class="panel-label">VICTORY ROUTES</p>
       <div class="doctrine-grid two" aria-label="승리 조건 진행도">
-        <div class="military"><span>군사</span><strong id="military-progress">0 / 3</strong></div>
-        <div class="science"><span>탈출 계획</span><strong id="science-progress">연구 필요</strong></div>
+        <div class="military"><span>군사 승리</span><strong id="military-progress">0 / 3 수도</strong></div>
+        <div class="science"><span>과학 승리</span><strong id="science-progress">연구 필요</strong></div>
       </div>
       <div class="ship-status" id="ship-status">우주항법 연구 필요</div>
       <div class="defense-status" id="defense-status">다음 적 공세 탐지 중</div>
-      <p class="enemy-label">HOSTILE CIVILIZATIONS</p>
-      <div class="enemy-grid" aria-label="적 문명 현황">
-        <div><strong id="enemy-capitals-value">3 / 3</strong><span>남은 수도</span></div>
-        <div><strong id="enemy-territory-value">0</strong><span>적 영토</span></div>
-        <div><strong id="enemy-pressure-value">0</strong><span>침공군</span></div>
-      </div>
-      <dl class="telemetry compact">
-        <div><dt>섬멸</dt><dd id="kills-value">0</dd></div>
-        <div><dt>현재 지형</dt><dd id="terrain-value">지휘 기지</dd></div>
-        <div><dt>국경 확장</dt><dd id="expansion-value">전초기지 필요</dd></div>
-      </dl>
     </aside>
 
     <aside id="tutorial-panel" class="tutorial-panel" hidden aria-live="polite" aria-labelledby="tutorial-title">
       <div class="tutorial-heading">
         <span>TRAINING ROUTE</span>
-        <strong id="tutorial-step-value">1 / 5</strong>
+        <strong id="tutorial-step-value">1 / 6</strong>
       </div>
       <h2 id="tutorial-title">기체를 이동하십시오</h2>
       <p id="tutorial-copy">WASD, 방향키 또는 왼쪽 이동 패드로 지휘 기체를 움직이십시오.</p>
@@ -121,6 +107,7 @@
       <span><kbd>P</kbd> 일시정지</span>
     </footer>
   </main>
+  <div id="menu-pause-indicator" class="menu-pause-indicator" hidden>전술 검토 중 · 시간 정지</div>
 
   <section id="lobby-overlay" class="overlay lobby-overlay" aria-labelledby="lobby-title">
     <div class="modal lobby-modal">
@@ -153,7 +140,58 @@
     </div>
   </section>
 
-  <section id="legend-overlay" class="overlay" hidden aria-labelledby="legend-title" role="dialog" aria-modal="true">
+  <section id="intel-overlay" class="overlay menu-overlay intel-overlay" hidden aria-labelledby="intel-title" role="dialog" aria-modal="true">
+    <div class="modal intel-modal">
+      <div class="intel-header">
+        <div>
+          <p class="eyebrow">COMMAND INTELLIGENCE / LIVE READOUT</p>
+          <h2 id="intel-title">전선 정보</h2>
+        </div>
+        <button id="intel-close" class="quiet-button" type="button">전장으로 복귀</button>
+      </div>
+      <div class="intel-grid">
+        <section class="intel-section territory-intel" aria-labelledby="territory-intel-title">
+          <p class="panel-label" id="territory-intel-title">FRONTIER GRID</p>
+          <div class="big-stat"><strong id="territory-value">1</strong><span>점령 타일</span></div>
+          <div class="economy-grid" aria-label="영토 경제">
+            <div><span>산업 생산</span><strong id="production-rate">+0.0/s</strong></div>
+            <div><span>과학 연구</span><strong id="science-rate">+0.0/s</strong></div>
+          </div>
+          <div class="capital-cycle-status" id="capital-cycle-status">수도 생산 주기 준비 중</div>
+          <div class="territory-legend" aria-label="영토 색상 범례">
+            <span class="own">아군</span><span class="neutral">중립</span><span class="hostile">적군</span>
+          </div>
+          <button id="legend-button" class="legend-button" type="button" aria-haspopup="dialog">지도 기호 전체 보기</button>
+        </section>
+        <section class="intel-section hostile-intel" aria-labelledby="hostile-intel-title">
+          <p class="panel-label hostile" id="hostile-intel-title">HOSTILE CIVILIZATIONS</p>
+          <div class="enemy-grid" aria-label="적 문명 현황">
+            <div><strong id="enemy-capitals-value">3 / 3</strong><span>남은 수도</span></div>
+            <div><strong id="enemy-territory-value">0</strong><span>적 영토</span></div>
+            <div><strong id="enemy-pressure-value">0</strong><span>침공군</span></div>
+          </div>
+          <dl class="telemetry compact">
+            <div><dt>섬멸</dt><dd id="kills-value">0</dd></div>
+            <div><dt>현재 지형</dt><dd id="terrain-value">지휘 기지</dd></div>
+            <div><dt>국경 확장</dt><dd id="expansion-value">전초기지 필요</dd></div>
+          </dl>
+        </section>
+        <section class="intel-section arsenal-intel" aria-labelledby="arsenal-intel-title">
+          <p class="panel-label" id="arsenal-intel-title">ARSENAL LOADOUT</p>
+          <dl class="telemetry">
+            <div><dt>자동 주무기</dt><dd id="weapon-value">표준 펄스</dd></div>
+            <div><dt>주변 공격</dt><dd id="auto-value">궤도 블레이드 × 1</dd></div>
+            <div><dt>무기 체계</dt><dd id="arsenal-value">펄스</dd></div>
+          </dl>
+        </section>
+      </div>
+      <div class="intel-actions">
+        <button id="restart-button" class="quiet-button danger-action" type="button">전선 재시작</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="legend-overlay" class="overlay menu-overlay" hidden aria-labelledby="legend-title" role="dialog" aria-modal="true">
     <div class="modal legend-modal">
       <p class="eyebrow">FRONTIER GRID / FIELD KEY</p>
       <h2 id="legend-title">지도 판독표</h2>
@@ -206,11 +244,13 @@
     <div class="modal augment-modal">
       <p class="eyebrow">COMBAT AUGMENT ACQUIRED</p>
       <h2 id="augment-title">전투 증강을 선택하십시오.</h2>
+      <div class="overlay-pause-note" aria-hidden="true">전투 정지</div>
+      <p id="augment-progress-summary" class="augment-progress-summary">펄스 0 / 4 · 궤도 0 / 4 · 융합 잠김</p>
       <div id="augment-options" class="augment-options"></div>
     </div>
   </section>
 
-  <section id="build-overlay" class="overlay" hidden aria-labelledby="build-title">
+  <section id="build-overlay" class="overlay menu-overlay" hidden aria-labelledby="build-title">
     <div class="modal build-modal">
       <p class="eyebrow">TERRITORY DEVELOPMENT</p>
       <h2 id="build-title">점령지를 전문화하십시오.</h2>
@@ -233,7 +273,7 @@
     </div>
   </section>
 
-  <section id="tech-overlay" class="overlay" hidden aria-labelledby="tech-title">
+  <section id="tech-overlay" class="overlay menu-overlay" hidden aria-labelledby="tech-title">
     <div class="modal tech-modal">
       <p class="eyebrow">SCIENCE TREE</p>
       <h2 id="tech-title">문명의 기준을 연구하십시오.</h2>
@@ -243,8 +283,8 @@
     </div>
   </section>
 
-  <section id="pause-overlay" class="overlay" hidden aria-labelledby="pause-title">
-    <div class="modal compact-modal">
+  <section id="pause-overlay" class="overlay pause-screen" hidden aria-labelledby="pause-title">
+    <div class="modal compact-modal pause-modal">
       <p class="eyebrow">TACTICAL HOLD</p>
       <h2 id="pause-title">전선 일시정지</h2>
       <button id="resume-button" class="primary-button" type="button">전투 복귀</button>

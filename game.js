@@ -31,7 +31,10 @@
     modeNormal: $("mode-normal-button"), modeTutorial: $("mode-tutorial-button"), lobby: $("lobby-overlay"),
     lobbyReturn: $("lobby-return-button"), victoryLobby: $("victory-lobby-button"), tutorialPanel: $("tutorial-panel"), tutorialStep: $("tutorial-step-value"),
     tutorialTitle: $("tutorial-title"), tutorialCopy: $("tutorial-copy"), tutorialProgress: $("tutorial-progress-fill"),
-    legendButton: $("legend-button"), legendOverlay: $("legend-overlay"), legendClose: $("legend-close")
+    legendButton: $("legend-button"), legendOverlay: $("legend-overlay"), legendClose: $("legend-close"),
+    intelButton: $("intel-button"), intelOverlay: $("intel-overlay"), intelClose: $("intel-close"), menuPause: $("menu-pause-indicator"),
+    augmentSummary: $("augment-progress-summary"), pulseLevel: $("pulse-evolution-level"), pulseFill: $("pulse-evolution-fill"), pulseName: $("pulse-evolution-name"),
+    orbitLevel: $("orbit-evolution-level"), orbitFill: $("orbit-evolution-fill"), orbitName: $("orbit-evolution-name"), fusionStatus: $("fusion-status")
   };
 
   const TAU = Math.PI * 2;
@@ -59,8 +62,9 @@
     { title: "기동 훈련", copy: "이동 스틱이나 WASD로 전장을 이동하세요." },
     { title: "개척학 연구", copy: "기술 메뉴에서 개척학을 연구하세요." },
     { title: "영토 확장", copy: "인접한 중립 헥스를 선택해 3단계 개척을 완료하세요." },
-    { title: "전초기지 설립", copy: "점령한 빈 헥스를 선택하고 새 거점을 세우세요." },
-    { title: "훈련 공세", copy: "접근하는 훈련 병력 4기를 자동 무기로 제거하세요." }
+    { title: "수도 생산", copy: "수도의 다음 산업 생산 펄스를 기다리세요." },
+    { title: "훈련 공세", copy: "접근하는 훈련 병력 4기를 자동 무기로 제거하세요." },
+    { title: "전투 증강", copy: "획득한 레벨업 증강 하나를 선택해 훈련을 마치세요." }
   ]);
   const TERRAIN_MODIFIERS = Object.freeze({
     plain: { move: 1, claim: 1, defense: 1, vision: 0, industry: 0, label: "표준 지형" },
@@ -84,17 +88,11 @@
   let animationFrame = 0;
 
   const AUGMENTS = [
-    { id: "charged-rounds", category: "combat", title: "과충전 탄환", text: "자동 주무기 피해 +35%", apply: (s) => { s.player.damage *= 1.35; } },
-    { id: "rapid-reload", category: "combat", title: "급속 장전", text: "자동 주무기 발사 간격 -22%", apply: (s) => { s.player.fireRate *= 0.78; } },
-    { id: "piercing-core", category: "combat", title: "관통 코어", text: "탄환 관통 +1", apply: (s) => { s.player.pierce += 1; } },
-    { id: "reactor-sync", category: "combat", title: "반응로 동기화", text: "자동 펄스 속도 +25%", apply: (s) => { s.player.autoRate *= 0.75; } },
-    { id: "amplified-pulse", category: "combat", title: "증폭 펄스", text: "자동 공격 피해 +40%", apply: (s) => { s.player.autoDamage *= 1.4; } },
-    { id: "targeting-array", category: "combat", title: "표적 연산기", text: "자동 주무기 사거리 +15%", apply: (s) => { s.player.attackRange *= 1.15; } },
-    { id: "mobile-armor", category: "combat", title: "기동 장갑", text: "이동 속도 +15%, 최대 체력 +12", apply: (s) => { s.player.speed *= 1.15; s.player.maxHp += 12; s.player.hp += 12; } },
-    { id: "field-repair", category: "combat", title: "응급 수복", text: "체력을 모두 회복하고 재생 +0.5/s", apply: (s) => { s.player.hp = s.player.maxHp; s.player.regen += 0.5; } },
-    { id: "phase-warhead", category: "combat", title: "위상 탄두", text: "탄환 크기와 속도 +25%", apply: (s) => { s.player.shotSize *= 1.25; s.player.shotSpeed *= 1.25; } },
-    { id: "chain-lightning", category: "combat", title: "연쇄 번개", text: "주기적으로 최대 3개의 적을 연쇄 타격", apply: (s) => { s.player.chainLevel += 1; s.player.chainClock = 0; } },
-    { id: "proximity-mines", category: "combat", title: "근접 지뢰", text: "주기적으로 광역 지뢰 설치", apply: (s) => { s.player.mineLevel += 1; s.player.mineClock = 0; } }
+    { id: "pulse-evolution", category: "pulse", title: "Pulse 진화" }, { id: "orbit-evolution", category: "orbit", title: "Orbit 진화" },
+    { id: "chain-lightning", category: "support", title: "연쇄 번개", text: "주기적으로 최대 3개의 적을 연쇄 타격" },
+    { id: "proximity-mines", category: "support", title: "근접 지뢰", text: "주기적으로 광역 지뢰 설치" },
+    { id: "mobile-armor", category: "support", title: "기동 장갑", text: "이동 속도 +15%, 최대 체력 +12" },
+    { id: "field-repair", category: "support", title: "응급 수복", text: "체력 완전 회복, 재생 +0.5/s" }
   ];
 
   function coordinateHash(q, r) {
@@ -146,9 +144,9 @@
       time: 0, selectedKey: null, activeOrder: null, assaultClock: 55, assaultId: 0, assault: null,
       capitalProductionClock: 10, capitalScienceClock: 15, capitalProductionPulses: 0, capitalSciencePulses: 0,
       kills: 0, production: 25, productionRate: 0, productionMultiplier: 1, expansionMultiplier: 1,
-      science: 0, scienceRate: 0, scienceMultiplier: 1, enemyId: 0, wildSpawnClock: 8, wildSpawnIndex: 0,
+      science: mode === "tutorial" ? TECHS.frontier.cost : 0, scienceRate: 0, scienceMultiplier: 1, enemyId: 0, wildSpawnClock: 8, wildSpawnIndex: 0,
       augmentLevels: {}, augmentChoices: [], techs: Object.fromEntries(Object.keys(TECHS).map((id) => [id, false])), ship: null,
-      tutorial: mode === "tutorial" ? { step: 0, complete: false, moved: 0, lastX: 0, lastY: 0, startTerritory: 1, startBases: 1, waveIds: [], waveStarted: false } : null,
+      tutorial: mode === "tutorial" ? { step: 0, complete: false, moved: 0, lastX: 0, lastY: 0, startTerritory: 1, pulseStart: 0, augmentStart: 0, waveIds: [], waveStarted: false } : null,
       siegeLockMessageClock: 0,
       camera: { x: 0, y: 0 }, hexes, hexByKey: new Map(hexes.map((hex) => [hex.key, hex])),
       enemies: [], projectiles: [], enemyShots: [], particles: [], messages: [],
@@ -158,6 +156,7 @@
         autoClock: 0.35, railClock: 1.2, missileClock: 1.7, chainLevel: 0, chainClock: 0,
         mineLevel: 0, mineClock: 0, attackRange: 1, invulnerable: 0, orbitAngle: 0 }
     };
+    s.player.augmentTracks = { pulse: 0, orbit: 0 }; s.player.orbitCount = 1; s.player.fusionUnlocked = false; s.player.fusionClock = 4.2;
     setupEnemyCivs(s);
     revealAround(s, 0, 0, 2);
     return s;
@@ -173,7 +172,7 @@
     state = freshState(start, mode); keys.clear(); clearTouchInput();
     document.body.dataset.gameMode = mode;
     setOverlay(ui.augment, false); setOverlay(ui.pause, false); setOverlay(ui.gameOver, false);
-    setOverlay(ui.victory, false); setOverlay(ui.buildOverlay, false); setOverlay(ui.techOverlay, false); setOverlay(ui.legendOverlay, false);
+    setOverlay(ui.victory, false); setOverlay(ui.buildOverlay, false); setOverlay(ui.techOverlay, false); setOverlay(ui.legendOverlay, false); setOverlay(ui.intelOverlay, false);
     setOverlay(ui.tutorialPanel, mode === "tutorial" && start); setOverlay(ui.lobby, !start);
     if (start) lastFrame = performance.now();
     updateHud(); return snapshot();
@@ -185,9 +184,9 @@
   }
 
   function returnToLobby() {
-    state.running = false; state.paused = true; state.menu = false; keys.clear(); clearTouchInput();
+    state.running = false; state.paused = true; state.menu = false; state.choosing = false; keys.clear(); clearTouchInput();
     delete document.body.dataset.gameMode;
-    setOverlay(ui.pause, false); setOverlay(ui.buildOverlay, false); setOverlay(ui.techOverlay, false); setOverlay(ui.legendOverlay, false);
+    setOverlay(ui.pause, false); setOverlay(ui.buildOverlay, false); setOverlay(ui.techOverlay, false); setOverlay(ui.legendOverlay, false); setOverlay(ui.intelOverlay, false);
     setOverlay(ui.gameOver, false); setOverlay(ui.victory, false); setOverlay(ui.augment, false);
     setOverlay(ui.tutorialPanel, false); setOverlay(ui.lobby, true); updateHud();
   }
@@ -295,15 +294,15 @@
 
   function enterTutorialStep(step) {
     const tutorial = state.tutorial; if (!tutorial || tutorial.complete) return;
-    tutorial.step = Math.max(0, Math.min(4, step));
+    tutorial.step = Math.max(0, Math.min(5, step));
     if (tutorial.step === 1) state.science = Math.max(state.science, TECHS.frontier.cost);
     if (tutorial.step === 2) state.production = Math.max(state.production, claimReserve());
-    if (tutorial.step === 3) state.production = Math.max(state.production, baseFoundCost());
+    if (tutorial.step === 3) { tutorial.pulseStart = state.capitalProductionPulses; state.capitalProductionClock = Math.min(2, state.capitalProductionClock); }
     if (tutorial.step === 4 && !tutorial.waveStarted) {
       tutorial.waveStarted = true;
       for (let i = 0; i < 4; i += 1) {
         if (!spawnWildEnemy()) continue;
-        const enemy = state.enemies[state.enemies.length - 1]; enemy.training = true; tutorial.waveIds.push(enemy.id);
+        const enemy = state.enemies[state.enemies.length - 1]; enemy.training = true; enemy.xp = 5; tutorial.waveIds.push(enemy.id);
       }
     }
   }
@@ -316,8 +315,7 @@
       if (tutorial.moved >= 80) enterTutorialStep(1);
     } else if (tutorial.step === 1 && state.techs.frontier) enterTutorialStep(2);
     else if (tutorial.step === 2 && capturedCount() > tutorial.startTerritory) enterTutorialStep(3);
-    else if (tutorial.step === 3 && playerBases().length > tutorial.startBases) enterTutorialStep(4);
-    else if (tutorial.step === 4 && tutorial.waveStarted && !state.enemies.some((enemy) => tutorial.waveIds.includes(enemy.id))) { tutorial.complete = true; state.assaultClock = 120; state.wildSpawnClock = 24; }
+    else if (tutorial.step === 3 && state.capitalProductionPulses > tutorial.pulseStart) enterTutorialStep(4);
   }
 
   function update(dt) {
@@ -344,13 +342,14 @@
       if (!hexAt(p.x, p.y)) { p.x = oldX; p.y = oldY; }
     }
     p.fireClock = Math.max(0, p.fireClock - dt); p.autoClock -= dt; p.railClock -= dt; p.missileClock -= dt;
-    p.chainClock -= dt; p.mineClock -= dt;
+    p.chainClock -= dt; p.mineClock -= dt; p.fusionClock -= dt;
     p.invulnerable = Math.max(0, p.invulnerable - dt); p.orbitAngle += dt * 2.8;
     const gardenRegen = state.hexes.filter((h) => h.captured && h.resource === "garden").length * 0.06;
     p.hp = Math.min(p.maxHp, p.hp + (p.regen + gardenRegen) * dt);
     if (p.fireClock <= 0) autoPrimary(); if (p.autoClock <= 0) autoAttack();
     if (p.chainLevel > 0 && p.chainClock <= 0) chainLightning();
     if (p.mineLevel > 0 && p.mineClock <= 0) deployMine();
+    if (p.fusionUnlocked && p.fusionClock <= 0) fireFusion();
   }
 
   function aimPoint() { return nearestHostile(view.hexSize * 5.5 * state.player.attackRange) || { x: state.player.x + 1, y: state.player.y }; }
@@ -386,7 +385,7 @@
     const p = state.player; const target = nearestHostile(view.hexSize * 5.5 * p.attackRange); p.fireClock = p.fireRate;
     if (!target) return false;
     const angle = Math.atan2(target.y - p.y, target.x - p.x);
-    addProjectile("pulse", p.x, p.y, angle, p.shotSpeed, p.shotSize, p.damage, 1.25, p.pierce, "#ffcf5a", { maxRange: view.hexSize * 5.75 });
+    addProjectile("pulse", p.x, p.y, angle, p.shotSpeed, p.shotSize, p.damage, 1.25, p.pierce, "#ffcf5a", { maxRange: view.hexSize * 5.75 * p.attackRange });
     const factories = buildingCount("factory");
     for (let i = 0; i < factories; i += 1) {
       const spread = 0.1 + i * 0.045;
@@ -399,9 +398,18 @@
   function autoAttack() {
     const p = state.player; const target = nearestHostile(view.hexSize * 5.5 * p.attackRange); p.autoClock = p.autoRate;
     if (!target) return;
-    const x = p.x + Math.cos(p.orbitAngle) * 34; const y = p.y + Math.sin(p.orbitAngle) * 34;
-    addProjectile("orbital", x, y, Math.atan2(target.y - y, target.x - x), 420, 8, p.autoDamage, 1.4, 1, "#63e6ff", { maxRange: view.hexSize * 5.5 });
-    burst(x, y, "#63e6ff", 5);
+    for (let i = 0; i < p.orbitCount; i += 1) {
+      const orbitAngle = p.orbitAngle + TAU * i / p.orbitCount; const x = p.x + Math.cos(orbitAngle) * 34; const y = p.y + Math.sin(orbitAngle) * 34;
+      addProjectile("orbital", x, y, Math.atan2(target.y - y, target.x - x), 420, 8, p.autoDamage, 1.4, 1, "#63e6ff", { maxRange: view.hexSize * 5.5 }); burst(x, y, "#63e6ff", 5);
+    }
+  }
+
+  function fireFusion() {
+    const p = state.player; const target = nearestHostile(view.hexSize * 7); p.fusionClock = 4.2; if (!target) return false;
+    for (let i = 0; i < 2; i += 1) { const orbitAngle = p.orbitAngle + Math.PI * i; const x = p.x + Math.cos(orbitAngle) * 34; const y = p.y + Math.sin(orbitAngle) * 34;
+      addProjectile("fusion", x, y, Math.atan2(target.y - y, target.x - x), 360, 10, 42, 4.2, 0, "#ffffff", { homing: true, aoe: 64, maxRange: view.hexSize * 7, targetId: target.id, targetStructureKey: target.structureKey }); }
+    burst(p.x, p.y, "#ffffff", 20);
+    return true;
   }
 
   function chainLightning() {
@@ -737,6 +745,7 @@
 
   function killEnemy(index) {
     const enemy = state.enemies[index]; state.enemies.splice(index, 1); state.kills += 1;
+    if (enemy.training && state.tutorial?.step === 4 && !state.enemies.some((item) => item.training && state.tutorial.waveIds.includes(item.id))) { state.tutorial.augmentStart = totalAugmentRanks(); state.tutorial.step = 5; }
     addXp(enemy.xp);
     burst(enemy.x, enemy.y, enemy.brute ? "#ff6b6b" : "#e24b63", enemy.brute ? 12 : 7);
   }
@@ -748,26 +757,60 @@
   }
 
   function showAugments() {
+    const available = AUGMENTS.filter((augment) => augment.category === "pulse" ? state.player.augmentTracks.pulse < 4 : augment.category === "orbit" ? state.player.augmentTracks.orbit < 4 : !state.augmentLevels[augment.id]);
+    const choices = [...available.filter((augment) => augment.category !== "support"), ...available.filter((augment) => augment.category === "support").sort(() => Math.random() - 0.5)].slice(0, 3);
+    if (!choices.length) return;
     state.choosing = true;
-    const choices = [...AUGMENTS.filter((augment) => augment.category === "combat")].sort(() => Math.random() - 0.5).slice(0, 3);
     state.augmentChoices = choices.map((augment) => augment.id);
     if (ui.augmentOptions) ui.augmentOptions.replaceChildren(...choices.map((augment, index) => {
       const button = document.createElement("button"); button.type = "button"; button.className = "augment-card";
       button.dataset.augmentId = augment.id; button.dataset.category = augment.category;
-      button.innerHTML = `<span>${augment.category.toUpperCase()} · 0${index + 1}</span><strong>${augment.title}</strong><small>${augment.text}</small>`;
+      const rank = augment.category === "pulse" || augment.category === "orbit" ? state.player.augmentTracks[augment.category] : 0;
+      button.innerHTML = `<span>${augment.category.toUpperCase()} · 0${index + 1}</span><strong>${augment.title} ${augment.category === "support" ? "" : `${rank}/4`}</strong><small>${augmentDescription(augment)}${rank === 3 ? " · 1차 진화" : ""}${state.player.fusionUnlocked ? " · 융합 활성" : ""}</small>`;
       button.addEventListener("click", () => { applyAugment(augment.id); state.choosing = false; state.augmentChoices = []; setOverlay(ui.augment, false); updateHud(); canvas.focus(); }); return button;
     }));
-    setOverlay(ui.augment, true);
+    setOverlay(ui.augment, true); updateHud();
+  }
+
+  function augmentDescription(augment) {
+    if (augment.category === "pulse") return ["피해 +30%", "연사 간격 -18%", "관통 +1 · 사거리 +10%", "1차 진화 · 피해 +35% · 크기 +20%"][state.player.augmentTracks.pulse];
+    if (augment.category === "orbit") return ["피해 +30%", "연사 간격 -18%", "궤도체 +1", "1차 진화 · 피해 +35% · 궤도체 +1"][state.player.augmentTracks.orbit];
+    return augment.text;
+  }
+
+  function totalAugmentRanks() { return state.player.augmentTracks.pulse + state.player.augmentTracks.orbit + AUGMENTS.filter((augment) => augment.category === "support" && state.augmentLevels[augment.id]).length; }
+
+  function unlockFusion() {
+    const p = state.player; if (p.augmentTracks.pulse >= 4 && p.augmentTracks.orbit >= 4 && !p.fusionUnlocked) { p.fusionUnlocked = true; p.fusionClock = 0; }
   }
 
   function applyAugment(id) {
     const augment = AUGMENTS.find((item) => item.id === id); if (!augment) return false;
-    augment.apply(state); state.augmentLevels[id] = (state.augmentLevels[id] || 0) + 1; return true;
+    const p = state.player;
+    if (augment.category === "pulse") {
+      const rank = p.augmentTracks.pulse; if (rank >= 4) return false;
+      if (rank === 0) p.damage *= 1.3; else if (rank === 1) p.fireRate *= 0.82; else if (rank === 2) { p.pierce += 1; p.attackRange *= 1.1; } else { p.damage *= 1.35; p.shotSize *= 1.2; }
+      p.augmentTracks.pulse += 1;
+    } else if (augment.category === "orbit") {
+      const rank = p.augmentTracks.orbit; if (rank >= 4) return false;
+      if (rank === 0) p.autoDamage *= 1.3; else if (rank === 1) p.autoRate *= 0.82; else if (rank === 2) p.orbitCount += 1; else { p.autoDamage *= 1.35; p.orbitCount += 1; }
+      p.augmentTracks.orbit += 1;
+    } else {
+      if (state.augmentLevels[id]) return false;
+      if (id === "chain-lightning") { p.chainLevel = 1; p.chainClock = 0; }
+      else if (id === "proximity-mines") { p.mineLevel = 1; p.mineClock = 0; }
+      else if (id === "mobile-armor") { p.speed *= 1.15; p.maxHp += 12; p.hp += 12; }
+      else if (id === "field-repair") { p.hp = p.maxHp; p.regen += 0.5; }
+    }
+    state.augmentLevels[id] = augment.category === "pulse" ? p.augmentTracks.pulse : augment.category === "orbit" ? p.augmentTracks.orbit : 1; unlockFusion();
+    if (state.tutorial?.step === 5) { state.tutorial.complete = true; state.assaultClock = 120; state.wildSpawnClock = 24; }
+    return true;
   }
 
   function captureHex(hex, source = "manual") {
     if (!hex || hex.captured || hex.enemyCiv) return false;
     hex.captured = true; hex.building = null; hex.enemyNeutralized = false; hex.claimFunded = false; hex.claimStage = 0; hex.claimProgress = 0; revealAround(state, hex.q, hex.r, 2);
+    if (state.tutorial?.step === 2) { hex.building = "outpost"; hex.baseLevel = 1; hex.baseGrowth = 0; hex.baseMaxHp = 120; hex.baseHp = 120; hex.defenseClock = 0; hex.turretClock = 0; }
     if (!hex.rewardClaimed) {
       hex.rewardClaimed = true;
       if (hex.resource === "core") state.player.autoDamage *= 1.12;
@@ -785,7 +828,7 @@
   function claimCost() { return state.techs.logistics ? 10 : 15; }
   function baseFoundCost() { return state.techs.colonial_admin ? 40 : 50; }
   function baseClaimRadius(base) { return (base.baseLevel || 1) + 1 + (state.techs.frontier ? 1 : 0); }
-  function claimStageDuration(hex) { return CLAIM_STAGE_SECONDS * terrainModifiers(hex).claim * (state.techs.frontier ? 0.8 : 1) * (state.techs.colonial_admin ? 0.75 : 1) / state.expansionMultiplier; }
+  function claimStageDuration(hex) { return CLAIM_STAGE_SECONDS * terrainModifiers(hex).claim * (state.techs.frontier ? 0.8 : 1) * (state.techs.colonial_admin ? 0.75 : 1) * (state.mode === "tutorial" ? 0.125 : 1) / state.expansionMultiplier; }
 
   function claimBaseFor(hex) {
     if (!hex || hex.captured || hex.enemyCiv || !neighbors(hex).some((item) => item.captured)) return null;
@@ -939,11 +982,11 @@
 
   function openBuildMenu() {
     if (!state.running || state.paused || state.choosing || state.ended) return;
-    state.menu = true; keys.clear(); clearTouchInput(); setOverlay(ui.buildOverlay, true); updateBuildUi();
+    state.menu = true; keys.clear(); clearTouchInput(); setOverlay(ui.buildOverlay, true); updateBuildUi(); setOverlay(ui.menuPause, true);
   }
 
   function closeBuildMenu() {
-    state.menu = false; setOverlay(ui.buildOverlay, false); lastFrame = performance.now(); canvas.focus();
+    state.menu = false; setOverlay(ui.buildOverlay, false); setOverlay(ui.menuPause, false); lastFrame = performance.now(); canvas.focus();
   }
 
   function updateBuildUi() {
@@ -1088,8 +1131,9 @@
   }
 
   function drawPlayer() {
-    const p = state.player; const blink = p.invulnerable > 0 && Math.floor(p.invulnerable * 20) % 2; const ox = p.x + Math.cos(p.orbitAngle) * 34; const oy = p.y + Math.sin(p.orbitAngle) * 34;
-    ctx.strokeStyle = "rgba(99,230,255,.22)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, 34, 0, TAU); ctx.stroke(); ctx.fillStyle = "#63e6ff"; ctx.shadowColor = "#63e6ff"; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(ox, oy, 6, 0, TAU); ctx.fill(); ctx.shadowBlur = 0;
+    const p = state.player; const blink = p.invulnerable > 0 && Math.floor(p.invulnerable * 20) % 2;
+    ctx.strokeStyle = "rgba(99,230,255,.22)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, 34, 0, TAU); ctx.stroke(); ctx.fillStyle = "#63e6ff"; ctx.shadowColor = "#63e6ff"; ctx.shadowBlur = 12;
+    for (let i = 0; i < p.orbitCount; i += 1) { const angle = p.orbitAngle + TAU * i / p.orbitCount; ctx.beginPath(); ctx.arc(p.x + Math.cos(angle) * 34, p.y + Math.sin(angle) * 34, 6, 0, TAU); ctx.fill(); } ctx.shadowBlur = 0;
     ctx.globalAlpha = blink ? 0.35 : 1; ctx.fillStyle = "#f7f3e8"; ctx.strokeStyle = "#0d1b25"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, TAU); ctx.fill(); ctx.stroke(); const target = aimPoint(); const angle = Math.atan2(target.y - p.y, target.x - p.x); ctx.strokeStyle = "#ffcf5a"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + Math.cos(angle) * 20, p.y + Math.sin(angle) * 20); ctx.stroke(); ctx.globalAlpha = 1;
   }
 
@@ -1127,6 +1171,12 @@
     if (ui.foundBase) ui.foundBase.disabled = !selected?.captured || Boolean(selected.building) || state.production < baseFoundCost();
     if (ui.shipButton) ui.shipButton.disabled = !state.techs.aerospace || Boolean(state.ship) || !selected?.captured || selected.baseLevel < 3 || state.production < 90;
     if (ui.shipStatus) ui.shipStatus.textContent = !state.ship ? state.techs.aerospace ? "레벨 3 거점과 산업력 90 필요" : "우주항법 기술 필요" : state.ship.phase === "launch" ? `발사 방어 ${Math.ceil(shipLaunchSeconds - state.ship.progress)}초` : `우주선 제작 ${state.ship.stage + 1}/3 · ${Math.floor(state.ship.progress / shipBuildSeconds * 100)}%`;
+    const pulseRank = p.augmentTracks.pulse; const orbitRank = p.augmentTracks.orbit;
+    if (ui.pulseLevel) ui.pulseLevel.textContent = `${pulseRank} / 4`; if (ui.pulseFill) ui.pulseFill.style.width = `${pulseRank * 25}%`; if (ui.pulseName) ui.pulseName.textContent = pulseRank < 4 ? ["기본형", "과충전", "속사형", "관통형"][pulseRank] : "Pulse 1차 진화";
+    if (ui.orbitLevel) ui.orbitLevel.textContent = `${orbitRank} / 4`; if (ui.orbitFill) ui.orbitFill.style.width = `${orbitRank * 25}%`; if (ui.orbitName) ui.orbitName.textContent = orbitRank < 4 ? ["기본형", "증폭형", "동기화", "다중 궤도"][orbitRank] : "Orbit 1차 진화";
+    if (ui.fusionStatus) ui.fusionStatus.textContent = p.fusionUnlocked ? `융합 포격 활성 · ${Math.max(0, p.fusionClock).toFixed(1)}초` : `융합 잠김 · Pulse ${pulseRank}/4 · Orbit ${orbitRank}/4`;
+    if (ui.augmentSummary) ui.augmentSummary.textContent = `Pulse ${pulseRank}/4 · Orbit ${orbitRank}/4 · ${p.fusionUnlocked ? "융합 활성" : "두 계통 4단계에서 융합"}`;
+    setOverlay(ui.menuPause, Boolean(state.menu || state.choosing));
     for (const [id, tech] of Object.entries(TECHS)) { const button = ui[`tech${id[0].toUpperCase()}${id.slice(1)}`]; if (button) { button.disabled = Boolean(techLockReason(id)); button.dataset.researched = String(state.techs[id]); } }
     updateTutorialUi();
     if (state.menu) updateBuildUi();
@@ -1143,7 +1193,7 @@
     const tutorial = state.tutorial; const tutorialRemaining = tutorial ? tutorial.waveIds.filter((id) => state.enemies.some((enemy) => enemy.id === id)).length : 0;
     return Object.freeze({ running: state.running, paused: state.paused, choosing: state.choosing, menu: state.menu, ended: state.ended, won: state.won, victoryType: state.victoryType, mode: state.mode,
       tutorial: tutorial ? Object.freeze({ step: tutorial.step, complete: tutorial.complete, moved: Number(tutorial.moved.toFixed(1)), waveStarted: tutorial.waveStarted, waveRemaining: tutorialRemaining,
-        progress: tutorial.complete ? 1 : tutorial.step === 0 ? Math.min(1, tutorial.moved / 80) : tutorial.step === 1 ? Number(state.techs.frontier) : tutorial.step === 2 ? Math.min(1, capturedCount() - tutorial.startTerritory) : tutorial.step === 3 ? Math.min(1, playerBases().length - tutorial.startBases) : (4 - tutorialRemaining) / 4 }) : null,
+        progress: tutorial.complete ? 1 : tutorial.step === 0 ? Math.min(1, tutorial.moved / 80) : tutorial.step === 1 ? Number(state.techs.frontier) : tutorial.step === 2 ? Math.min(1, capturedCount() - tutorial.startTerritory) : tutorial.step === 3 ? Number(state.capitalProductionPulses > tutorial.pulseStart) : tutorial.step === 4 ? (4 - tutorialRemaining) / 4 : Number(totalAugmentRanks() > tutorial.augmentStart) }) : null,
       time: Number(state.time.toFixed(2)), hp: Number(state.player.hp.toFixed(1)), maxHp: state.player.maxHp, x: Number(state.player.x.toFixed(1)), y: Number(state.player.y.toFixed(1)),
       camera: Object.freeze({ x: Number(state.camera.x.toFixed(1)), y: Number(state.camera.y.toFixed(1)) }), mapTiles: state.hexes.length,
       discovered: state.hexes.filter((hex) => hex.discovered).length, level: state.player.level, xp: state.player.xp, kills: state.kills, territory: capturedCount(), enemies: state.enemies.length,
@@ -1166,11 +1216,13 @@
       enemyUnits: Object.freeze(state.enemies.map((enemy) => Object.freeze({ id: enemy.id, civ: enemy.originCiv, origin: enemy.originStructure, originKey: enemy.originKey,
         assaultId: enemy.assaultId || null, targetBaseKey: enemy.targetBaseKey || null, x: Number(enemy.x.toFixed(1)), y: Number(enemy.y.toFixed(1)) }))),
       weapons: Object.freeze(["pulse", "orbital", state.player.chainLevel && "chain", state.player.mineLevel && "mine", buildingCount("factory") && "scatter", buildingCount("lab") && "rail", buildingCount("silo") && "missile"].filter(Boolean)),
-      augmentChoices: Object.freeze([...state.augmentChoices]), augmentLevels: Object.freeze({ ...state.augmentLevels }), victoryProgress,
+      augmentChoices: Object.freeze([...state.augmentChoices]), augmentLevels: Object.freeze({ ...state.augmentLevels }), augmentTracks: Object.freeze({ ...state.player.augmentTracks }),
+      fusion: Object.freeze({ unlocked: state.player.fusionUnlocked, clock: Number(state.player.fusionClock.toFixed(2)), orbitCount: state.player.orbitCount }), victoryProgress,
       projectiles: state.projectiles.length, baseShots: state.projectiles.filter((shot) => shot.kind === "base").length, enemyShots: state.enemyShots.length,
       projectileKinds: Object.freeze([...new Set(state.projectiles.map((shot) => shot.kind))]),
       projectileRanges: Object.freeze(state.projectiles.filter((shot) => shot.maxRange !== null).map((shot) => Object.freeze({ kind: shot.kind,
         sourceBaseKey: shot.sourceBaseKey || null, targetId: shot.targetId || null, priorityAssault: Boolean(shot.priorityAssault),
+        damage: Number(shot.damage.toFixed(1)), homing: Boolean(shot.homing), aoe: shot.aoe || 0,
         traveled: Number(shot.traveled.toFixed(1)), maxRange: Number(shot.maxRange.toFixed(1)), originX: Number(shot.originX.toFixed(1)), originY: Number(shot.originY.toFixed(1)) }))),
       enemyShotRanges: Object.freeze(state.enemyShots.map((shot) => Object.freeze({ traveled: Number(shot.traveled.toFixed(1)), maxRange: Number(shot.maxRange.toFixed(1)), originX: Number(shot.originX.toFixed(1)), originY: Number(shot.originY.toFixed(1)) }))),
       projectileVelocity: lastProjectile ? Object.freeze({ vx: Number(lastProjectile.vx.toFixed(1)), vy: Number(lastProjectile.vy.toFixed(1)) }) : null,
@@ -1224,37 +1276,47 @@
 
   function renderTechTree() {
     if (!ui.techOptions || !state) return;
-    ui.techOptions.replaceChildren(...Object.values(TECHS).map((tech) => {
-      const button = document.createElement("button"); const reason = techLockReason(tech.id);
-      button.type = "button"; button.className = `tech-card ${tech.id}`; button.dataset.techId = tech.id; button.dataset.researched = String(state.techs[tech.id]);
-      button.dataset.tier = String(({ logistics: 2, fortification: 2, siege: 2, aerospace: 2, colonial_admin: 3, metropolitan: 3, guardian_analysis: 3, orbital_engineering: 3 })[tech.id] || 1); button.dataset.branch = ({ frontier: "frontier", logistics: "expansion", colonial_admin: "expansion", urban: "city", fortification: "city", metropolitan: "city", ballistics: "military", siege: "siege", guardian_analysis: "siege", research_network: "science", aerospace: "exodus", orbital_engineering: "exodus" })[tech.id];
-      button.disabled = Boolean(reason); button.title = reason || `${tech.title} 연구 가능`;
-      const requires = tech.requires.length ? ` · 선행 ${tech.requires.map((id) => TECHS[id].title).join(", ")}` : "";
-      button.innerHTML = `<strong>${tech.title}</strong><span>과학 ${tech.cost}${requires}</span><small>${tech.text}${reason ? ` · ${reason}` : ""}</small>`;
-      return button;
+    const branches = [
+      ["expansion", "개척", ["frontier", "logistics", "colonial_admin"]], ["city", "도시", ["urban", "fortification", "metropolitan"]],
+      ["military", "군사", ["ballistics", "siege", "guardian_analysis"]], ["science", "과학", ["research_network", "aerospace", "orbital_engineering"]]
+    ];
+    ui.techOptions.replaceChildren(...branches.map(([branchId, title, ids]) => {
+      const section = document.createElement("section"); section.className = "tech-branch"; section.dataset.branch = branchId;
+      const heading = document.createElement("h3"); heading.textContent = title; const nodes = document.createElement("div"); nodes.className = "tech-branch-nodes";
+      nodes.replaceChildren(...ids.map((id, tier) => {
+        const tech = TECHS[id]; const button = document.createElement("button"); const reason = techLockReason(id);
+        const techState = state.techs[id] ? "researched" : reason ? "locked" : "available";
+        button.type = "button"; button.className = `tech-card ${id}`; button.dataset.techId = id; button.dataset.state = techState; button.dataset.tier = String(tier + 1); button.dataset.branch = branchId; button.dataset.prerequisites = tech.requires.join(",");
+        button.disabled = techState !== "available"; button.title = reason || `${tech.title} 연구 가능`;
+        const requires = tech.requires.length ? ` · 선행 ${tech.requires.map((required) => TECHS[required].title).join(", ")}` : "";
+        button.innerHTML = `<strong>${tech.title}</strong><span>과학 ${tech.cost}${requires}</span><small>${tech.text}${reason ? ` · ${reason}` : ""}</small>`; return button;
+      }));
+      section.replaceChildren(heading, nodes); return section;
     }));
   }
 
   function updateTutorialUi() {
     const tutorial = state?.tutorial; if (!tutorial) return;
-    const step = Math.min(4, tutorial.step); const remaining = tutorial.waveIds.filter((id) => state.enemies.some((enemy) => enemy.id === id)).length;
-    const progress = tutorial.complete ? 1 : step === 0 ? Math.min(1, tutorial.moved / 80) : step === 1 ? Number(state.techs.frontier) : step === 2 ? Math.min(1, capturedCount() - tutorial.startTerritory) : step === 3 ? Math.min(1, playerBases().length - tutorial.startBases) : (4 - remaining) / 4;
-    if (ui.tutorialStep) ui.tutorialStep.textContent = tutorial.complete ? "완료" : `${step + 1} / 5`;
+    const step = Math.min(5, tutorial.step); const remaining = tutorial.waveIds.filter((id) => state.enemies.some((enemy) => enemy.id === id)).length;
+    const progress = tutorial.complete ? 1 : step === 0 ? Math.min(1, tutorial.moved / 80) : step === 1 ? Number(state.techs.frontier) : step === 2 ? Math.min(1, capturedCount() - tutorial.startTerritory) : step === 3 ? Number(state.capitalProductionPulses > tutorial.pulseStart) : step === 4 ? (4 - remaining) / 4 : Number(totalAugmentRanks() > tutorial.augmentStart);
+    if (ui.tutorialStep) ui.tutorialStep.textContent = tutorial.complete ? "완료" : `${step + 1} / 6`;
     if (ui.tutorialTitle) ui.tutorialTitle.textContent = tutorial.complete ? "훈련 완료" : TUTORIAL_STEPS[step].title;
     if (ui.tutorialCopy) ui.tutorialCopy.textContent = tutorial.complete ? "낮은 압력의 전장에서 계속 성장하거나 본 게임으로 돌아갈 수 있습니다." : TUTORIAL_STEPS[step].copy;
     if (ui.tutorialProgress) ui.tutorialProgress.style.width = `${Math.max(0, Math.min(100, progress * 100))}%`;
   }
 
   function openTechMenu() { if (!state.running || state.paused || state.choosing || state.ended) return; state.menu = true; keys.clear(); clearTouchInput(); renderTechTree(); setOverlay(ui.techOverlay, true); updateHud(); }
-  function closeTechMenu() { state.menu = false; setOverlay(ui.techOverlay, false); lastFrame = performance.now(); canvas.focus(); }
-  function openLegend() { if (!state) return; state.menu = true; keys.clear(); clearTouchInput(); setOverlay(ui.legendOverlay, true); }
-  function closeLegend() { state.menu = false; setOverlay(ui.legendOverlay, false); lastFrame = performance.now(); canvas.focus(); }
+  function closeTechMenu() { state.menu = false; setOverlay(ui.techOverlay, false); setOverlay(ui.menuPause, false); lastFrame = performance.now(); canvas.focus(); }
+  function openLegend() { if (!state) return; state.menu = true; keys.clear(); clearTouchInput(); setOverlay(ui.intelOverlay, false); setOverlay(ui.legendOverlay, true); setOverlay(ui.menuPause, true); }
+  function closeLegend() { state.menu = false; setOverlay(ui.legendOverlay, false); setOverlay(ui.menuPause, false); lastFrame = performance.now(); canvas.focus(); }
+  function openIntel() { if (!state.running || state.paused || state.choosing || state.ended) return; state.menu = true; keys.clear(); clearTouchInput(); setOverlay(ui.legendOverlay, false); setOverlay(ui.intelOverlay, true); setOverlay(ui.menuPause, true); }
+  function closeIntel() { state.menu = false; setOverlay(ui.intelOverlay, false); setOverlay(ui.menuPause, false); lastFrame = performance.now(); canvas.focus(); }
 
   window.addEventListener("resize", resize); window.addEventListener("blur", () => { keys.clear(); clearTouchInput(); });
   document.addEventListener("visibilitychange", () => { if (document.hidden) { keys.clear(); clearTouchInput(); togglePause(true); } });
   window.addEventListener("keydown", (event) => {
     if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyB"].includes(event.code)) event.preventDefault();
-    if (event.code === "Escape" && state.menu) { setOverlay(ui.techOverlay, false); setOverlay(ui.legendOverlay, false); closeBuildMenu(); return; }
+    if (event.code === "Escape" && state.menu) { setOverlay(ui.techOverlay, false); setOverlay(ui.legendOverlay, false); setOverlay(ui.intelOverlay, false); closeBuildMenu(); return; }
     if (event.code === "Escape" || event.code === "KeyP") { togglePause(); return; }
     if (event.code === "KeyB") { openBuildMenu(); return; }
     keys.add(event.code);
@@ -1265,7 +1327,7 @@
   canvas.addEventListener("pointerdown", (event) => { if (event.button === 0) { event.preventDefault(); pointer.clientX = event.clientX; pointer.clientY = event.clientY; pointer.inside = true; const world = screenToWorld(event.clientX, event.clientY); const hex = hexAt(world.x, world.y); if (hex) selectTile(hex.key); canvas.focus(); } });
   ui.modeNormal?.addEventListener("click", () => startGame("normal")); ui.modeTutorial?.addEventListener("click", () => startGame("tutorial"));
   ui.restart?.addEventListener("click", () => startGame(state.mode)); ui.resume?.addEventListener("click", () => togglePause(false)); ui.playAgain?.addEventListener("click", () => startGame(state.mode)); ui.victoryRestart?.addEventListener("click", () => startGame(state.mode)); ui.pauseButton?.addEventListener("click", () => togglePause());
-  ui.lobbyReturn?.addEventListener("click", returnToLobby); ui.victoryLobby?.addEventListener("click", returnToLobby); ui.legendButton?.addEventListener("click", openLegend); ui.legendClose?.addEventListener("click", closeLegend);
+  ui.lobbyReturn?.addEventListener("click", returnToLobby); ui.victoryLobby?.addEventListener("click", returnToLobby); ui.legendButton?.addEventListener("click", openLegend); ui.legendClose?.addEventListener("click", closeLegend); ui.intelButton?.addEventListener("click", openIntel); ui.intelClose?.addEventListener("click", closeIntel);
   ui.buildButton?.addEventListener("click", openBuildMenu); ui.buildCancel?.addEventListener("click", closeBuildMenu);
   ui.foundBase?.addEventListener("click", foundBase); ui.shipButton?.addEventListener("click", startShip);
   ui.techButton?.addEventListener("click", openTechMenu); ui.techClose?.addEventListener("click", closeTechMenu);
